@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2026 House Forecast</title>
+  <meta name="description" content="An interactive forecast of the 2026 U.S. House midterm elections — a district-level map." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="https://www.markgsheppard.com/" target="_blank" rel="noopener">Mark G. Sheppard</a>
+      <nav class="segmented" id="modes" role="tablist" aria-label="Forecast model">
+        <button role="tab" data-mode="standard" aria-selected="true">Standard</button>
+        <button role="tab" data-mode="plus"     aria-selected="false">Plus</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <section class="masthead">
+      <div class="mast-left">
+        <p class="eyebrow">U.S. House of Representatives</p>
+        <h1 class="title">2026 House Forecast</h1>
+        <p class="subtitle">All 435 districts, simulated. Hover a district for its margin and odds. <span class="frozen-inline" id="frozen">Model last run</span></p>
+      </div>
+      <div class="controls">
+        <div class="ballot">
+          <div class="ballot-head">
+            <label for="gb-slider">Generic ballot</label>
+            <output id="gb-val" for="gb-slider">D +6.5</output>
+          </div>
+          <input type="range" id="gb-slider" min="0" max="10" step="0.1" value="6.5"
+                 aria-label="Generic ballot, Democratic margin in points" />
+        </div>
+        <p class="ctrl-note" id="ballot-note">Opens at D&nbsp;+6.5 &mdash; Nate&nbsp;Silver&rsquo;s Silver&nbsp;Bulletin average (June&nbsp;3, 2026); drag to apply a uniform national swing.</p>
+        <p class="ctrl-note" id="mode-note">Plus adds the 2025&ndash;26 redistricting (TX, MO, NC, OH, net of California) as a baseline shift &mdash; sliding the seats&ndash;votes curve ~3&nbsp;pts toward Republicans, flipping the closest Democratic seats and moving control by about ten.</p>
+      </div>
+    </section>
+
+    <section class="topline">
+      <div class="seat-counts">
+        <div class="seat-side d">
+          <span class="seat-label">Democrats</span>
+          <span class="seat-num" id="dem-seats">0</span>
+        </div>
+        <p class="verdict" id="verdict"></p>
+        <div class="seat-side r">
+          <span class="seat-label">Republicans</span>
+          <span class="seat-num" id="gop-seats">0</span>
+        </div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-track">
+          <div class="gauge-d" id="gauge-d"></div>
+          <div class="gauge-r" id="gauge-r"></div>
+        </div>
+        <div class="gauge-mid"></div>
+      </div>
+    </section>
+
+    <section class="map-section">
+      <div class="map-stage" id="stage">
+        <svg id="map" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map of U.S. congressional districts shaded by forecast"></svg>
+      </div>
+      <div class="legend">
+        <div>
+          <div class="scale"></div>
+          <div class="ends"><span>R +30</span><span>Even</span><span>D +30</span></div>
+        </div>
+        <span class="chip"><i style="background:var(--gop)"></i>Republican</span>
+        <span class="chip"><i style="background:var(--dem)"></i>Democratic</span>
+        <span class="chip tip"><i></i>Tipping point</span>
+      </div>
+      <div class="data-bar">
+        <button type="button" id="load-xlsx" class="data-link">update</button>
+        <span class="data-sep">·</span>
+        <button type="button" id="download-xlsx" class="data-link">download</button>
+        <input type="file" id="xlsx-input" accept=".xlsx,.xls" hidden />
+        <span class="data-stamp" id="shapefile-stamp">Updated with shapefile · June 3, 2026</span>
+      </div>
+    </section>
+
+    <section class="battle">
+      <h2>The battlegrounds</h2>
+      <p class="lede">With today's polarization and redistricting, the House comes down to a few dozen seats. These are the closest districts in the model — the ones that decide control.</p>
+      <div class="bg-grid" id="battlegrounds"></div>
+    </section>
+
+  </main>
+
+  <footer class="site">
+    <div class="wrap foot-grid">
+      <a class="brand foot-brand" href="https://www.markgsheppard.com/" target="_blank" rel="noopener">Mark G. Sheppard</a>
+      <div class="foot-text">
+        <p class="foot-note" id="footnote"></p>
+        <p class="tech-note" id="tech-method"></p>
+        <p class="tech-note" id="boundary-note"></p>
+        <p class="tech-note" id="tech-libs">Rendering: D3&nbsp;v7 and TopoJSON&nbsp;v3 (CDN); spreadsheet I/O via SheetJS. Geometry projected with d3-geo Albers&nbsp;USA. Type: Archivo, Hanken&nbsp;Grotesk &amp; Helvetica. Source files: index.html, styles.css, app.js, data.js; data pipeline: house-polling.xlsx + update_forecast.py.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="tip" id="tooltip" aria-hidden="true"></div>
+  <div class="flash" id="flash" role="status" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
