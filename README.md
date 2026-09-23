@@ -1,5 +1,7 @@
 # 2026 House Forecast — Mark G. Sheppard
 
+Now built on REAL district geometry: the 2026 enacted congressional maps (Dave’s Redistricting) for the ten redrawn states (AL, CA, FL, LA, MO, NC, OH, TN, TX, UT) and the latest Census/UCLA boundaries for the other 40. District partisan margins are real (DRA two-party margin for the redrawn states; FiveThirtyEight district lean elsewhere). The slider is the national Democratic vote margin (anchor 0); there is no separate redistricting toggle because the redraws are already in the map. Missouri’s map is subject to a November referendum.
+
 An interactive U.S. House forecast map. Two ways to update it from a spreadsheet.
 
 ## The files
@@ -44,3 +46,15 @@ with the new numbers and an auto-stamped date. Requires Python with `openpyxl`
 - Forecast figures are illustrative, calibrated to the generic-ballot environment you set.
 - Boundaries are the most recent complete national base available (2016 lines + PA-2018 / NC-2020 /
   NJ-2022 court maps); the 2025–26 mid-decade redraws are reflected in the projections, not the lines.
+
+
+## Mail-In Access (the Plus model)
+Selecting **Plus** reveals a second slider under the generic ballot, **Mail-In Access**, that models mail-voting restrictions as a *non-uniform* Democratic turnout drag:
+
+`shock(state) = severity x 2024 mail share x mail Dem-skew`
+
+- **2024 mail share** — real, from the U.S. Election Assistance Commission (some smaller states estimated).
+- **mail Dem-skew** — how much more Democratic the marginal mail voter is; largest where mail is optional (voters self-select and Democrats mail more), ~0 where everyone already votes by mail.
+- **severity** — the page slider (0 = full access). The readout shows the national Democratic margin it costs.
+
+Effect concentrates in moderate-mail swing states (PA, MI, NV, WI, AZ); universal-mail states (CA, CO, WA, OR, UT) barely move because there is no partisan differential to lose. The per-state assumptions live in the **Mail-In** sheet of house-polling.xlsx for transparency. Grounded in the real 2025-26 USPS Federal Ballot Mail Portal rule (blocked, pending Supreme Court). **Illustrative** — the direction is well-grounded; the magnitudes are assumptions.
