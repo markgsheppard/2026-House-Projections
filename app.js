@@ -153,7 +153,14 @@
     return base + (genericBallot - SEN_MU0) + mailShock(st) + econShock(st) + bias;
   }
   function senProb(m) { return Math.max(0.002, Math.min(0.998, normCdf(m / SEN_KSD))); }
-  function senColor(st) { const m = senMargin(st); return (m === null) ? "#e6e7e9" : colorScale(m); }
+  const SEN_NOTUP = meta.senateNotUp || {};        // { ST: 'D' | 'R' | 'split' } for the 15 states not on the ballot
+  const SEN_NOTUP_LEAN = meta.senateNotUpLean || {}; // composite lean (Senate + governor + legislature), coloring only
+  function senColor(st) {
+    const m = senMargin(st);
+    if (m !== null) return colorScale(m);            // race up: color by forecast margin
+    if (st in SEN_NOTUP_LEAN) return colorScale(SEN_NOTUP_LEAN[st]);   // not up: composite partisan tilt
+    return "#e6e7e9";
+  }
 
   // merge districts into state polygons
   const stGeoms = {};
@@ -226,8 +233,11 @@
   function showSenTip(evt, d) {
     const st = d.id, rc = senByState[st];
     if (!rc) {
+      const g = SEN_NOTUP[st];
+      const held = g === "D" ? "2 Democrats" : g === "R" ? "2 Republicans" : "Split delegation";
       tooltip.innerHTML = `<div class="t-code">${st}</div>
-        <div class="t-row"><span>U.S. Senate</span><b>Not up in 2026</b></div>`;
+        <div class="t-row"><span>Not up in 2026</span><b></b></div>
+        <div class="t-row"><span>Held by</span><b>${held}</b></div>`;
     } else {
       const m = senMargin(st), dp = Math.round(senProb(m) * 100), rp = 100 - dp;
       const isTip = st === senTipState;
