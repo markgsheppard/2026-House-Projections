@@ -420,3 +420,12 @@ input[type="range"]#sim-mu, input[type="range"]#sim-sig, input[type="range"]#sim
 .resim-btn:hover { border-color: #6b7280; box-shadow: 0 2px 10px rgba(0,0,0,.10); }
 .resim-btn:active { transform: translateY(1px); }
 .resim-btn:disabled { opacity: .5; cursor: default; }
+
+/* ---------------------------------------------------------------- chamber tabs */
+.eyebrow .ch-tab { cursor: pointer; color: var(--ink-faint); transition: color .15s var(--ease); }
+.eyebrow .ch-tab:hover { color: var(--ink-soft); }
+.eyebrow .ch-tab.is-on { color: var(--ink); }
+.eyebrow .ch-sep { color: var(--line-2); }
+/* Senate state fills */
+.senate-state { stroke: #fff; stroke-width: 0.6; cursor: pointer; }
+.senate-state.hot { stroke: #fff; stroke-width: 1.2; }

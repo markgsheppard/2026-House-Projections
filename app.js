@@ -128,6 +128,51 @@
   gState.append("path").attr("class", "state-border").attr("d", path(stateMesh));
   gState.append("path").attr("class", "state-border").attr("d", path(stateOuter));
 
+  /* ---- Senate view (state-level, same methodology) --------------------- */
+  let chamber = "house";
+  const SEN_MU0 = (typeof meta.genericBallot === "number") ? meta.genericBallot : 7.5;
+  const SEN_KSD = Math.sqrt(6 * 6 + 6 * 6);           // national + race sd (matches the simulator)
+  const SEN_NOTUP_D = (typeof meta.senateNotUpD === "number") ? meta.senateNotUpD : 34;
+  const SEN_WINLINE = (typeof meta.senateWin === "number") ? meta.senateWin : 51;
+  const senByState = {}; (meta.senate || []).forEach(rc => senByState[rc.st] = rc);
+  const senTipState = (function () {
+    const s = (meta.senate || []).slice().sort((a, b) => b.p - a.p);
+    const i = SEN_WINLINE - SEN_NOTUP_D - 1;
+    return (i >= 0 && i < s.length) ? s[i].st : "";
+  })();
+  // standard normal CDF (Zelen & Severo) so a race reproduces its stored win prob
+  function normCdf(z) {
+    const t = 1 / (1 + 0.2316419 * Math.abs(z)), d = 0.3989423 * Math.exp(-z * z / 2);
+    const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+    return z > 0 ? 1 - p : p;
+  }
+  function senMargin(st) {
+    const rc = senByState[st]; if (!rc) return null;
+    const base = SEN_KSD * probit(rc.p);              // race margin at the reference environment
+    const bias = (mode === "plus") ? -POLLBIAS : 0;
+    return base + (genericBallot - SEN_MU0) + mailShock(st) + econShock(st) + bias;
+  }
+  function senProb(m) { return Math.max(0.002, Math.min(0.998, normCdf(m / SEN_KSD))); }
+  function senColor(st) { const m = senMargin(st); return (m === null) ? "#e6e7e9" : colorScale(m); }
+
+  // merge districts into state polygons
+  const stGeoms = {};
+  districts.objects.districts.geometries.forEach(g => {
+    const st = g.properties.st; if (!st) return;
+    (stGeoms[st] = stGeoms[st] || []).push(g);
+  });
+  const stateFeatures = Object.keys(stGeoms).map(st => ({
+    type: "Feature", id: st, geometry: topojson.merge(districts, stGeoms[st])
+  }));
+  const gSenate = svg.append("g").attr("class", "senate-states");
+  gSenate.lower();                                     // sit beneath the state borders
+  gSenate.style("display", "none");
+  const senatePaths = gSenate.selectAll("path")
+    .data(stateFeatures, d => d.id).join("path")
+    .attr("class", "senate-state")
+    .attr("d", path)
+    .attr("fill", d => senColor(d.id));
+
   /* ---- tooltip --------------------------------------------------------- */
   const tooltip = document.getElementById("tooltip");
   const stage = document.getElementById("stage");
@@ -178,6 +223,31 @@
   }
   paths.on("mouseenter", showTip).on("mousemove", moveTip).on("mouseleave", hideTip);
 
+  function showSenTip(evt, d) {
+    const st = d.id, rc = senByState[st];
+    if (!rc) {
+      tooltip.innerHTML = `<div class="t-code">${st}</div>
+        <div class="t-row"><span>U.S. Senate</span><b>Not up in 2026</b></div>`;
+    } else {
+      const m = senMargin(st), dp = Math.round(senProb(m) * 100), rp = 100 - dp;
+      const isTip = st === senTipState;
+      tooltip.innerHTML = `<div class="t-code">${st}</div>
+        <div class="t-row"><span>Projected margin</span><b>${fmtMargin(m)}</b></div>
+        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
+        <div class="t-row"><span style="color:var(--gop)">GOP win</span><b>${rp}%</b></div>
+        <div class="t-row"><span style="color:var(--dem)">DEM win</span><b>${dp}%</b></div>
+        <div class="t-row"><span>Held by</span><b>${rc.held === "D" ? "Democrat" : "Republican"}</b></div>
+        ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}`;
+    }
+    tooltip.classList.add("on");
+    tooltip.setAttribute("aria-hidden", "false");
+    moveTip(evt);
+    stage.classList.add("dim");
+    gHi.selectAll("*").remove();
+    gHi.append("path").attr("d", path(d)).attr("fill", senColor(st)).attr("class", "senate-state hot");
+  }
+  senatePaths.on("mouseenter", showSenTip).on("mousemove", moveTip).on("mouseleave", hideTip);
+
   /* ---- topline + gauge + verdict --------------------------------------- */
   const elDem = document.getElementById("dem-seats");
   const elGop = document.getElementById("gop-seats");
@@ -186,6 +256,11 @@
   const elVerdict = document.getElementById("verdict");
 
   function tally() {
+    if (chamber === "senate") {
+      let d = SEN_NOTUP_D;
+      (meta.senate || []).forEach(rc => { const m = senMargin(rc.st); if (m !== null && m >= 0) d++; });
+      return { d, r: 100 - d, total: 100 };
+    }
     let d = 0, r = 0;
     for (const id in forecast) (effective(forecast[id]).party === "D") ? d++ : r++;
     return { d, r, total: d + r };
@@ -208,26 +283,36 @@
     else { elDem.textContent = d; elGop.textContent = r; }
     elGD.style.width = (100 * d / total) + "%";
     elGR.style.width = (100 * r / total) + "%";
-    const leadParty = d >= r ? "Democrats" : "Republicans";
-    const cls = d >= r ? "lead-d" : "lead-r";
-    const verb = (d === r) ? "are tied for" : "are favored to win";
+    const win = (chamber === "senate") ? SEN_WINLINE : 218;
+    const body = (chamber === "senate") ? "the Senate" : "the House";
+    const demWins = d >= win;
+    const cls = demWins ? "lead-d" : "lead-r";
     elVerdict.innerHTML =
-      `<span class="${cls}">${leadParty}</span> ${verb} the House`;
+      `<span class="${cls}">${demWins ? "Democrats" : "Republicans"}</span> are favored to win ${body}`;
   }
 
   /* ---- battlegrounds --------------------------------------------------- */
   const bgWrap = document.getElementById("battlegrounds");
   function renderBattlegrounds() {
-    const rows = Object.keys(forecast).map(id => {
-      const f = forecast[id]; const e = effective(f);
-      return { code: f.code, margin: e.margin, demProb: e.demProb };
-    }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 24);
-
+    let rows, tipCode;
+    if (chamber === "senate") {
+      tipCode = senTipState;
+      rows = (meta.senate || []).map(rc => {
+        const m = senMargin(rc.st);
+        return { code: rc.st, margin: m, demProb: senProb(m) };
+      }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 16);
+    } else {
+      tipCode = currentTip;
+      rows = Object.keys(forecast).map(id => {
+        const f = forecast[id]; const e = effective(f);
+        return { code: f.code, margin: e.margin, demProb: e.demProb };
+      }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 24);
+    }
     bgWrap.innerHTML = rows.map(r => {
       const dp = Math.round(r.demProb * 100), rp = 100 - dp;
       const partyCls = r.margin >= 0 ? "d" : "r";
       const leadProb = Math.max(dp, rp);
-      const isTip = r.code === currentTip;
+      const isTip = r.code === tipCode;
       return `<div class="bg-cell${isTip ? " tipping" : ""}">
         <div class="bg-code">${r.code}</div>
         <div class="bg-margin ${partyCls}">${fmtMargin(r.margin)}</div>
@@ -239,6 +324,11 @@
 
   /* ---- recolor map ----------------------------------------------------- */
   function recolor(animate = true) {
+    if (chamber === "senate") {
+      const sel = animate ? senatePaths.transition().duration(450) : senatePaths;
+      sel.attr("fill", d => senColor(d.id));
+      return;
+    }
     const sel = animate ? paths.transition().duration(450) : paths;
     sel.attr("fill", d => colorScale(effective(forecast[d.id]).margin));
     paths.attr("class", d =>
@@ -258,6 +348,25 @@
     renderTopline(animate);
     renderBattlegrounds();
   }
+
+  /* ---- chamber toggle (House / Senate) --------------------------------- */
+  const mainTitle = document.getElementById("main-title");
+  const subDesc = document.getElementById("sub-desc");
+  const HOUSE_SUB = "All 435 districts, simulated. Hover a district for its margin and odds.";
+  const SENATE_SUB = "The 35 seats up in 2026, plus the seats not on the ballot. Hover a state for its margin and odds.";
+  function setChamber(ch) {
+    if (ch === chamber) return;
+    chamber = ch;
+    document.querySelectorAll(".ch-tab").forEach(t => t.classList.toggle("is-on", t.dataset.ch === ch));
+    if (mainTitle) mainTitle.textContent = "2026 " + (ch === "senate" ? "Senate" : "House") + " Forecast";
+    if (subDesc) subDesc.textContent = (ch === "senate") ? SENATE_SUB : HOUSE_SUB;
+    gDist.style("display", ch === "house" ? null : "none");
+    gSenate.style("display", ch === "senate" ? null : "none");
+    hideTip();
+    render(false);
+  }
+  document.querySelectorAll(".ch-tab").forEach(t =>
+    t.addEventListener("click", () => setChamber(t.dataset.ch)));
 
   /* ---- generic-ballot slider (R +10 .. D +10) -------------------------- */
   const gbSlider = document.getElementById("gb-slider");
