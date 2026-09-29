@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>2026 House Forecast</title>
-  <meta name="description" content="An interactive forecast of the 2026 U.S. House midterm elections — a district-level map." />
+  <meta name="description" content="An interactive forecast of the 2026 U.S. House midterm elections, a district-level map." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -98,8 +98,34 @@
 
     <section class="battle">
       <h2>The battlegrounds</h2>
-      <p class="lede">With today's polarization and redistricting, the House comes down to a few dozen seats. These are the closest districts in the model — the ones that decide control.</p>
+      <p class="lede">With today's polarization and redistricting, the House comes down to a few dozen seats. These are the closest districts in the model, the ones that decide control.</p>
       <div class="bg-grid" id="battlegrounds"></div>
+    </section>
+
+    <section class="sim">
+      <h2>Simulated outcomes</h2>
+      <p class="lede">Twenty thousand simulated elections. Each run draws one national environment (the expected margin below, &plusmn;6 points of uncertainty) and then decides every seat individually: all 435 districts on their real margins and the 35 Senate races up in 2026, so the House and Senate move together. Each little box is a share of the simulations; the line marks the seats needed for control.</p>
+      <div class="sim-controls">
+        <div class="ballot">
+          <div class="ballot-head"><label for="sim-mu">Expected national margin</label><output id="sim-mu-val">D +7.5</output></div>
+          <input type="range" id="sim-mu" min="-10" max="10" step="0.1" value="7.5" aria-label="Expected national margin" />
+        </div>
+        <div class="ballot">
+          <div class="ballot-head"><label for="sim-mail">Mail-In Access</label><output id="sim-mail-val">0.0 pts</output></div>
+          <input type="range" id="sim-mail" min="0" max="5" step="0.1" value="0" aria-label="Mail-in access restriction, national margin drag in points" />
+        </div>
+        <button type="button" id="sim-resim" class="resim-btn">Resimulate</button>
+      </div>
+      <div class="sim-charts">
+        <div class="sim-panel">
+          <div class="sim-phead" id="sim-h-head"></div>
+          <svg id="sim-house" viewBox="0 0 470 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Histogram of simulated Democratic House seats"></svg>
+        </div>
+        <div class="sim-panel">
+          <div class="sim-phead" id="sim-s-head"></div>
+          <svg id="sim-senate" viewBox="0 0 470 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Histogram of simulated Democratic Senate seats"></svg>
+        </div>
+      </div>
     </section>
 
   </main>

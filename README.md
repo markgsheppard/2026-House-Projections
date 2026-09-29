@@ -58,3 +58,7 @@ Selecting **Plus** reveals a second slider under the generic ballot, **Mail-In A
 - **severity** — the page slider (0 = full access). The readout shows the national Democratic margin it costs.
 
 Effect concentrates in moderate-mail swing states (PA, MI, NV, WI, AZ); universal-mail states (CA, CO, WA, OR, UT) barely move because there is no partisan differential to lose. The per-state assumptions live in the **Mail-In** sheet of house-polling.xlsx for transparency. Grounded in the real 2025-26 USPS Federal Ballot Mail Portal rule (blocked, pending Supreme Court). **Illustrative** — the direction is well-grounded; the magnitudes are assumptions.
+
+
+## Simulated outcomes (Monte Carlo)
+Below the battlegrounds, a 40,000-run Monte Carlo draws a national vote around an expected margin (with an uncertainty slider) and applies it across all 435 real district margins, adding seat-level noise, to produce a distribution of Democratic seat totals. Bars are blue at/above 218 (majority) and red below; readouts show the majority probability, median seats, and the 80% interval. Runs entirely in-browser (~3 ms/run) on the same data as the map. Illustrative.
