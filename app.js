@@ -19,11 +19,23 @@
   const ANCHOR = (typeof meta.anchor === "number") ? meta.anchor : 0;
   let genericBallot = (typeof meta.genericBallot === "number") ? meta.genericBallot : 7.5;
   const MAIL = mail || {};
+  const ECON = DATA.econ || {};                 // { ST: { m: misery index, g: governor party } }
+  const ECON_THRESH = (typeof meta.econThreshold === "number") ? meta.econThreshold : 7.5;
+  const ECON_MAX = (typeof meta.econMax === "number") ? meta.econMax : 1.5;
   let mode = "standard";
   let mailDrag = 0;                     // target national Dem-margin drag, points (0..5)
+  let econLevel = 0;                    // Economic Parameter slider, 0..100
   const POLLBIAS = (typeof meta.pollBias === "number") ? meta.pollBias : 2.9; // Plus: correct recent D-favoring bias
   const SIGMA = 3.5;
   const logistic = (m, s) => 1 / (1 + Math.exp(-m / s));
+
+  // Economic Parameter: in a state whose misery index is above the threshold,
+  // scale up to ECON_MAX points against the party holding that governorship.
+  function econShock(stateCode) {
+    const e = ECON[stateCode];
+    if (!e || e.m <= ECON_THRESH) return 0;
+    return (e.g === "D" ? -1 : 1) * (econLevel / 100) * ECON_MAX;
+  }
 
   // average of (share x skew) across districts, so the slider reads in points
   let MAILK = 1;
@@ -45,7 +57,7 @@
   // modes; Plus adds a uniform polling-bias correction (toward Republicans).
   function effective(d) {
     const bias = (mode === "plus") ? -POLLBIAS : 0;
-    const margin = d.margin + (genericBallot - ANCHOR) + mailShock(d.state) + bias;
+    const margin = d.margin + (genericBallot - ANCHOR) + mailShock(d.state) + econShock(d.state) + bias;
     return {
       margin,
       demProb: Math.max(0.002, Math.min(0.998, logistic(margin, SIGMA))),
@@ -264,12 +276,23 @@
   const mailVal = document.getElementById("mail-val");
   function fmtDrag() {
     const d = nationalDrag();
-    return (d <= -0.05 ? "\u2212" + Math.abs(d).toFixed(1) : "0.0") + " pts";
+    return (d <= -0.05 ? "-" + Math.abs(d).toFixed(1) : "0.0") + " pts";
   }
   if (mailSlider) {
     mailSlider.addEventListener("input", () => {
       mailDrag = +mailSlider.value;
       if (mailVal) mailVal.textContent = fmtDrag();
+      render(false);
+    });
+  }
+
+  /* ---- Economic Parameter slider (state misery, both modes) ------------ */
+  const econSlider = document.getElementById("econ-slider");
+  const econVal = document.getElementById("econ-val");
+  if (econSlider) {
+    econSlider.addEventListener("input", () => {
+      econLevel = +econSlider.value;
+      if (econVal) econVal.textContent = econLevel + "%";
       render(false);
     });
   }
@@ -293,7 +316,7 @@
   const footnoteEl = document.getElementById("footnote");
   const techEl    = document.getElementById("tech-method");
   const boundaryEl = document.getElementById("boundary-note");
-  function signed(n) { return (n >= 0 ? "+" : "\u2212") + Math.abs(n); }
+  function signed(n) { return (n >= 0 ? "+" : "-") + Math.abs(n); }
   function refreshMetaText() {
     if (frozenEl) frozenEl.textContent = "Model last run on " + (meta.dataUpdated || "");
     if (stampEl)  stampEl.textContent  = meta.shapefileNote || "";
@@ -305,7 +328,9 @@
     if (techEl) techEl.textContent =
       "Method: the generic-ballot slider applies a uniform national swing to every district\u2019s baseline " +
       "margin, so its value is the national vote margin; Mail-In Access is an estimate of a non-uniform turnout " +
-      "effect from voting-restriction models, scaled by each state\u2019s 2024 mail share; and the Plus model " +
+      "effect from voting-restriction models, scaled by each state\u2019s 2024 mail share; the Economic Parameter models " +
+      "state economic stress: in any state whose misery index (unemployment plus inflation) exceeds " + ECON_THRESH +
+      ", the slider applies up to " + ECON_MAX + " points against the party holding that state\u2019s governorship; and the Plus model " +
       "corrects for recent polling bias, based on data. Win probabilities use a logistic function (\u03c3 = " +
       SIGMA + " points); the tipping-point district is the 218th ranked by margin. Inputs: generic ballot " +
       fmtGB(genericBallot) + " (" + (meta.gbSource || "n/a") + ", " + (meta.dataUpdated || "n/a") +
@@ -468,9 +493,13 @@
     const ND = bases.length;
     // per-district mail-in shock per point of drag (state mail share x Dem-skew), and codes
     const mUnitH = Float64Array.from(flist.map(f => { const mm = MAIL[f.state]; return mm && MAILK > 0 ? -(mm.share * mm.skew) / MAILK : 0; }));
+    // per-seat Economic-Parameter shock at full (100%) intensity
+    const eUnit = st => { const e = ECON[st]; return (e && e.m > ECON_THRESH) ? (e.g === "D" ? -1 : 1) * ECON_MAX : 0; };
+    const eUnitH = Float64Array.from(flist.map(f => eUnit(f.state)));
     const codesH = flist.map(f => f.code);
     const M = Float64Array.from(SENRACES.map(rc => KSD * probit(rc.p)));  // race margin at MU0
     const mUnitS = Float64Array.from(SENRACES.map(rc => { const mm = MAIL[rc.st]; return mm && MAILK > 0 ? -(mm.share * mm.skew) / MAILK : 0; }));
+    const eUnitS = Float64Array.from(SENRACES.map(rc => eUnit(rc.st)));
     const NS = M.length;
     let s = (seed >>> 0) || 1;
     const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
@@ -483,19 +512,19 @@
     }
     return {
       N, codesH, senRaces: SENRACES, notUpD: NOTUP_D,
-      // effective District margin at (mu, mail) with no idiosyncratic noise (for pivotal ranking)
-      houseEff(mu, mail) { return flist.map((f, d) => ({ code: f.code, m: bases[d] + mu + mail * mUnitH[d] })); },
-      senEff(mu, mail) { const dmu = mu - MU0; return SENRACES.map((rc, r) => ({ st: rc.st, m: M[r] + dmu + mail * mUnitS[r] })); },
-      run(mu, mail) {
-        mail = mail || 0;
+      // effective margins at (mu, mail, econ) with no idiosyncratic noise (for pivotal ranking)
+      houseEff(mu, mail, econ) { const ef = (econ || 0) / 100; return flist.map((f, d) => ({ code: f.code, m: bases[d] + mu + mail * mUnitH[d] + ef * eUnitH[d] })); },
+      senEff(mu, mail, econ) { const dmu = mu - MU0, ef = (econ || 0) / 100; return SENRACES.map((rc, r) => ({ st: rc.st, m: M[r] + dmu + mail * mUnitS[r] + ef * eUnitS[r] })); },
+      run(mu, mail, econ) {
+        mail = mail || 0; const ef = (econ || 0) / 100;
         const hc = new Int32Array(436), sc = new Int32Array(101); let hM = 0, sM = 0;
         const dmu = mu - MU0;
         for (let i = 0; i < N; i++) {
           const m = mu + SIG * Z[i];                    // national environment this run
           const oh = i * ND; let h = 0;
-          for (let d = 0; d < ND; d++) if (bases[d] + m + mail * mUnitH[d] + EH[oh + d] > 0) h++;
+          for (let d = 0; d < ND; d++) if (bases[d] + m + mail * mUnitH[d] + ef * eUnitH[d] + EH[oh + d] > 0) h++;
           const os = i * NS; let se = NOTUP_D;
-          for (let r = 0; r < NS; r++) if (M[r] + dmu + SIG * Z[i] + mail * mUnitS[r] + ES[os + r] > 0) se++;
+          for (let r = 0; r < NS; r++) if (M[r] + dmu + SIG * Z[i] + mail * mUnitS[r] + ef * eUnitS[r] + ES[os + r] > 0) se++;
           hc[h]++; sc[se]++;
           if (h >= 218) hM++; if (se >= SEN_WIN) sM++;
         }
@@ -551,9 +580,10 @@
 
   const simMuS = document.getElementById("sim-mu"), simMuV = document.getElementById("sim-mu-val");
   const simMailS = document.getElementById("sim-mail"), simMailV = document.getElementById("sim-mail-val");
+  const simEconS = document.getElementById("sim-econ"), simEconV = document.getElementById("sim-econ-val");
   const simResim = document.getElementById("sim-resim");
   const hSvg = document.getElementById("sim-house"), sSvg = document.getElementById("sim-senate");
-  let simMailDrag = 0;
+  let simMailDrag = 0, simEcon = 0;
   let houseHit = null, senHit = null;   // per-render hover data for the two charts
 
   function setHead(id, name, o, extra) {
@@ -564,10 +594,10 @@
     if (!SIM) return;
     const cols = { cDem: C('--dem') || '#2e74d0', cGop: C('--gop') || '#e24b38', cInk: C('--ink') || '#0f1115', cFaint: C('--ink-faint') || '#9aa0a8', fSans: C('--sans') || 'sans-serif' };
     const muEff = simMu + (mode === "plus" ? -POLLBIAS : 0);   // Plus = level shift toward Republicans
-    const r = SIM.run(muEff, simMailDrag);
+    const r = SIM.run(muEff, simMailDrag, simEcon);
     // pivotal-seat rankings at the current settings (safest Democratic first)
-    const hEff = SIM.houseEff(muEff, simMailDrag).sort((a, b) => b.m - a.m);
-    const sEff = SIM.senEff(muEff, simMailDrag).sort((a, b) => b.m - a.m);
+    const hEff = SIM.houseEff(muEff, simMailDrag, simEcon).sort((a, b) => b.m - a.m);
+    const sEff = SIM.senEff(muEff, simMailDrag, simEcon).sort((a, b) => b.m - a.m);
     const hb = boxHist(r.house.counts, 435, 218, 4, cols);
     const sb = boxHist(r.senate.counts, 100, SEN_WIN, 1, cols);
     if (hSvg) hSvg.innerHTML = hb.html;
@@ -577,7 +607,7 @@
         const end = Math.min(435, cell.start + 3);
         const rank = Math.min(435, Math.max(1, Math.round(cell.start + 2)));
         const piv = hEff[rank - 1] ? hEff[rank - 1].code : "";
-        return `<div class="t-code">${cell.start}\u2013${end} seats</div>
+        return `<div class="t-code">${cell.start}-${end} seats</div>
           <div class="t-row"><span>Share of runs</span><b>${(cell.count / SIM.N * 100).toFixed(1)}%</b></div>
           <div class="t-row"><span>Pivotal district</span><b>${piv}</b></div>`;
       }
@@ -591,7 +621,7 @@
           <div class="t-row"><span>Pivotal state</span><b>${piv}</b></div>`;
       }
     };
-    const tag = (mode === "plus") ? ` \u00b7 Plus \u2212${POLLBIAS}` : "";
+    const tag = (mode === "plus") ? ` \u00b7 Plus -${POLLBIAS}` : "";
     setHead("sim-h-head", "House", r.house, tag);
     setHead("sim-s-head", "Senate", r.senate, (senTip ? ` \u00b7 tips on ${senTip}` : "") + tag);
   }
@@ -620,13 +650,16 @@
   attachHover(sSvg, () => senHit);
 
   function fmtMu(v) { return (Math.abs(v) <= 0.05) ? "Even" : (v > 0 ? "D +" : "R +") + (Math.abs(v - Math.round(v)) < 0.05 ? Math.round(Math.abs(v)) : Math.abs(v).toFixed(1)); }
-  function fmtPts(v) { return (v <= 0.05 ? "0.0" : "\u2212" + v.toFixed(1)) + " pts"; }
+  function fmtPts(v) { return (v <= 0.05 ? "0.0" : "-" + v.toFixed(1)) + " pts"; }
   if (simMuS) {
     simMuS.value = String(simMu);
     simMuS.addEventListener("input", () => { simMu = +simMuS.value; if (simMuV) simMuV.textContent = fmtMu(simMu); renderSim(); });
   }
   if (simMailS) {
     simMailS.addEventListener("input", () => { simMailDrag = +simMailS.value; if (simMailV) simMailV.textContent = fmtPts(simMailDrag); renderSim(); });
+  }
+  if (simEconS) {
+    simEconS.addEventListener("input", () => { simEcon = +simEconS.value; if (simEconV) simEconV.textContent = simEcon + "%"; renderSim(); });
   }
   if (simResim) {
     simResim.addEventListener("click", () => {

@@ -48,6 +48,14 @@
             <input type="range" id="mail-slider" min="0" max="5" step="0.1" value="0"
                    aria-label="Mail-in access restriction, national margin drag in points" />
           </div>
+          <div class="ballot">
+            <div class="ballot-head">
+              <label for="econ-slider">Economic Parameter</label>
+              <output id="econ-val" for="econ-slider">0%</output>
+            </div>
+            <input type="range" id="econ-slider" min="0" max="100" step="1" value="0"
+                   aria-label="Economic parameter, state misery penalty intensity" />
+          </div>
         </div>
         <p class="ctrl-note" id="ballot-note"></p>
       </div>
@@ -107,12 +115,16 @@
       <p class="lede">Twenty thousand simulated elections. Each run draws one national environment (the expected margin below, &plusmn;6 points of uncertainty) and then decides every seat individually: all 435 districts on their real margins and the 35 Senate races up in 2026, so the House and Senate move together. Each little box is a share of the simulations; the line marks the seats needed for control.</p>
       <div class="sim-controls">
         <div class="ballot">
-          <div class="ballot-head"><label for="sim-mu">Expected national margin</label><output id="sim-mu-val">D +7.5</output></div>
+          <div class="ballot-head"><label for="sim-mu">Expected margin</label><output id="sim-mu-val">D +7.5</output></div>
           <input type="range" id="sim-mu" min="-10" max="10" step="0.1" value="7.5" aria-label="Expected national margin" />
         </div>
         <div class="ballot">
           <div class="ballot-head"><label for="sim-mail">Mail-In Access</label><output id="sim-mail-val">0.0 pts</output></div>
           <input type="range" id="sim-mail" min="0" max="5" step="0.1" value="0" aria-label="Mail-in access restriction, national margin drag in points" />
+        </div>
+        <div class="ballot">
+          <div class="ballot-head"><label for="sim-econ">Economic Parameter</label><output id="sim-econ-val">0%</output></div>
+          <input type="range" id="sim-econ" min="0" max="100" step="1" value="0" aria-label="Economic parameter, state misery penalty intensity" />
         </div>
         <button type="button" id="sim-resim" class="resim-btn">Resimulate</button>
       </div>
