@@ -64,7 +64,9 @@ Below the battlegrounds, a 40,000-run Monte Carlo draws a national vote around a
 
 
 ## Controls row (top)
-Generic ballot · Mail-In Access · Fundamentals (formerly "Economic Parameter") · Historical polling bias · polling sparkline.
+Ballot · Mail-in · Fundamentals · Polling bias · Polls sparkline · Undecided chart. Hover any label for a fuller explanation.
+- **Undecided chart** compares the share undecided on the generic ballot (100 − D − R in the RealClearPolitics average) with
+  2010, 2014, 2018 and 2022, lined up by days before Election Day; the dashed line marks today. Data: `undecidedHistory` in data.js.
 - **Historical polling bias** is an Off/On toggle (it replaces Standard/Plus). On applies a uniform 2.9-point shift toward
   Republicans to every race, the average recent polling error in Democrats' favor (`pollBias` in data.js). Also in the simulator.
 - **Polling sparkline** smooths the individual generic-ballot polls in the **Polls** sheet (Pollster, Start date, End date, Dem %, Rep %)

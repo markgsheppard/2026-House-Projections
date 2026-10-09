@@ -224,7 +224,7 @@
     tooltip.style.top = y + "px";
   }
   function hideTip() {
-    tooltip.classList.remove("on");
+    tooltip.classList.remove("on", "wide");
     tooltip.setAttribute("aria-hidden", "true");
     stage.classList.remove("dim");
     gHi.selectAll("*").remove();
@@ -363,11 +363,9 @@
     const fmtD = t => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
     document.getElementById("ps-vals").innerHTML =
       `<b style="color:var(--dem)">D ${lastP.d.toFixed(1)}</b> <b style="color:var(--gop)">R ${lastP.r.toFixed(1)}</b>`;
-    document.getElementById("ps-und").textContent = und == null ? "" : Math.round(und) + "% undecided";
     document.getElementById("ps-x0").textContent = fmtD(t0);
     document.getElementById("ps-x1").textContent = fmtD(POLLS[POLLS.length - 1].end);
-    svgEl.setAttribute("aria-label", `Generic ballot polling average: Democrats ${lastP.d.toFixed(1)}, Republicans ${lastP.r.toFixed(1)}` +
-      (und == null ? "" : `, ${Math.round(und)}% undecided`));
+    svgEl.setAttribute("aria-label", `Generic ballot polling average: Democrats ${lastP.d.toFixed(1)}, Republicans ${lastP.r.toFixed(1)}`);
   }
 
   // hover readout for the polling sparkline
@@ -401,6 +399,89 @@
     svgEl.addEventListener("touchmove", move, { passive: true });
     svgEl.addEventListener("touchend", leave);
   })();
+
+  /* ---- undecided share vs. past midterms (aligned by days to Election Day) -- */
+  const UH = DATA.undecidedHistory || null;
+  const UND_COL = { 2010: "#c9a96e", 2014: "#9bb5a6", 2018: "#a99bc4", 2022: "#9aa7b8", 2026: "#2b2f36" };
+  let undChart = null;
+  function renderUndSpark() {
+    const svgEl = document.getElementById("und-svg"), wrap = document.getElementById("und-spark");
+    if (!svgEl || !wrap) return;
+    if (!UH || !UH.series) { wrap.style.display = "none"; return; }
+    const years = Object.keys(UH.series).sort();
+    const W = Math.max(120, Math.round(svgEl.getBoundingClientRect().width || svgEl.parentNode.clientWidth || 180)), H = 34, pad = 3;
+    svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`); svgEl.setAttribute("width", W);
+    let lo = Infinity, hi = -Infinity, dmax = 0;
+    years.forEach(y => UH.series[y].forEach(([d, v]) => { lo = Math.min(lo, v); hi = Math.max(hi, v); dmax = Math.max(dmax, d); }));
+    const x = d => pad + (dmax - d) / dmax * (W - 2 * pad);
+    const yv = v => pad + (hi - v) / ((hi - lo) || 1) * (H - 2 * pad);
+    const now = UH.series["2026"] ? UH.series["2026"][UH.series["2026"].length - 1] : null;
+    let out = "";
+    if (now) out += `<line x1="${x(now[0]).toFixed(1)}" x2="${x(now[0]).toFixed(1)}" y1="0" y2="${H}" stroke="#d6d8db" stroke-width="1" stroke-dasharray="2 2"/>`;
+    years.forEach(y => {
+      const cur = y === "2026";
+      const d = UH.series[y].map((p, i) => (i ? "L" : "M") + x(p[0]).toFixed(1) + "," + yv(p[1]).toFixed(1)).join("");
+      out += `<path d="${d}" fill="none" stroke="${UND_COL[y] || "#9aa0a8"}" stroke-width="${cur ? 1.8 : 1.1}" stroke-linejoin="round" opacity="${cur ? 1 : .9}"/>`;
+    });
+    if (now) out += `<circle cx="${x(now[0]).toFixed(1)}" cy="${yv(now[1]).toFixed(1)}" r="2.2" fill="${UND_COL[2026]}"/>`;
+    out += `<line class="ps-guide" x1="0" x2="0" y1="0" y2="${H}" stroke="#9aa0a8" stroke-width="1" style="display:none"/><rect width="${W}" height="${H}" fill="transparent"/>`;
+    svgEl.innerHTML = out;
+    undChart = { x, dmax, W, years };
+    const und = document.getElementById("ps-und");
+    if (und && now) und.textContent = now[1].toFixed(1) + "% now";
+    const lg = document.getElementById("und-legend");
+    if (lg) lg.innerHTML = years.map(y => `<span style="color:${UND_COL[y]}"><i style="background:${UND_COL[y]}"></i>${y === "2026" ? "2026" : "’" + y.slice(2)}</span>`).join("");
+    svgEl.setAttribute("aria-label", "Share of voters undecided on the generic ballot by days before Election Day, 2026 vs. 2010, 2014, 2018 and 2022" + (now ? `; ${now[1]}% now` : ""));
+  }
+  (function () {
+    const svgEl = document.getElementById("und-svg"); if (!svgEl) return;
+    function move(evt) {
+      if (!undChart) return;
+      const r = svgEl.getBoundingClientRect();
+      const cx = ((evt.touches ? evt.touches[0].clientX : evt.clientX) - r.left) / r.width * undChart.W;
+      let day = Math.round(undChart.dmax - (cx - 3) / (undChart.W - 6) * undChart.dmax);
+      day = Math.max(0, Math.min(undChart.dmax, day));
+      const g = svgEl.querySelector(".ps-guide"); const gx = undChart.x(day).toFixed(1);
+      if (g) { g.setAttribute("x1", gx); g.setAttribute("x2", gx); g.style.display = ""; }
+      const rows = undChart.years.slice().reverse().map(y => {
+        const s = UH.series[y]; let best = null, bd = Infinity;
+        s.forEach(p => { const dd = Math.abs(p[0] - day); if (dd < bd) { bd = dd; best = p; } });
+        return (best && bd <= 3) ? `<div class="t-row"><span style="color:${UND_COL[y]}">${y}</span><b>${best[1].toFixed(1)}%</b></div>` : "";
+      }).join("");
+      tooltip.innerHTML = `<div class="t-code">${day} days out</div><div class="t-sub">Undecided on the generic ballot</div>${rows}`;
+      tooltip.classList.add("on"); tooltip.setAttribute("aria-hidden", "false");
+      moveTip(evt.touches ? evt.touches[0] : evt);
+    }
+    function leave() { const g = svgEl.querySelector(".ps-guide"); if (g) g.style.display = "none"; tooltip.classList.remove("on"); tooltip.setAttribute("aria-hidden", "true"); }
+    svgEl.addEventListener("mousemove", move); svgEl.addEventListener("mouseleave", leave);
+    svgEl.addEventListener("touchstart", move, { passive: true }); svgEl.addEventListener("touchmove", move, { passive: true });
+    svgEl.addEventListener("touchend", leave);
+    let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderUndSpark, 120); });
+  })();
+
+  /* ---- hover explanations for the control labels ------------------------ */
+  const TIPS = {
+    ballot: ["Ballot", "The generic congressional ballot: the national Democratic-minus-Republican vote margin. It opens at the current polling average and swings every district and Senate race uniformly."],
+    mail: ["Mail-in", "Mail-In Access: models restrictions on mail voting as a Democratic turnout drag. The effect is largest in moderate-mail swing states (state 2024 mail share × how Democratic mail voters are); the readout is the national cost in points."],
+    econ: ["Fundamentals", "State economic stress. Where a state’s misery index (unemployment + inflation) is above " + ECON_THRESH + ", this shifts races up to " + ECON_MAX + " points against the party holding the governorship."],
+    bias: ["Polling bias", "Historical polling bias. On shifts every race " + POLLBIAS + " points toward Republicans, the average recent polling error in Democrats’ favor. Off takes the polls at face value."],
+    polls: ["Polls", "Generic-ballot polls, smoothed with a two-week kernel. Lines are the Democratic (blue) and Republican (red) averages; the light bands are ±1 standard deviation. Hover the chart for any date."],
+    und: ["Undecided", "Share choosing neither party in the generic-ballot average (100 minus D and R), lined up by days before Election Day for 2026 and the last four midterms. The dashed line marks today."],
+    mu: ["Expected margin", "The national Democratic margin each simulation is centered on, before ±6 points of uncertainty."]
+  };
+  document.querySelectorAll(".has-tip").forEach(el => {
+    const t = TIPS[el.dataset.tip]; if (!t) return;
+    el.setAttribute("aria-description", t[1]); el.tabIndex = 0;
+    const show = (evt) => {
+      tooltip.innerHTML = `<div class="t-code">${t[0]}</div><div class="t-desc">${t[1]}</div>`;
+      tooltip.classList.add("on", "wide"); tooltip.setAttribute("aria-hidden", "false");
+      if (evt && evt.clientX != null) moveTip(evt);
+      else { const r = el.getBoundingClientRect(); moveTip({ clientX: r.left, clientY: r.bottom }); }
+    };
+    const hide = () => { tooltip.classList.remove("on", "wide"); tooltip.setAttribute("aria-hidden", "true"); };
+    el.addEventListener("mouseenter", show); el.addEventListener("mousemove", moveTip);
+    el.addEventListener("mouseleave", hide); el.addEventListener("focus", show); el.addEventListener("blur", hide);
+  });
 
   /* ---- topline + gauge + verdict --------------------------------------- */
   const elDem = document.getElementById("dem-seats");
@@ -605,7 +686,7 @@
       "polling bias, when on, applies a uniform " + POLLBIAS + "-point correction toward Republicans for the average recent " +
       "polling error in Democrats\u2019 favor. The polling sparkline smooths individual generic-ballot polls " +
       "(" + (meta.pollSource || "public polls") + ") with a two-week kernel; the light band is \u00b11 standard deviation of the polls. " +
-      "Undecided is the average share choosing neither party in polls from the last three weeks, excluding forced-choice polls. " +
+      "Undecided compares the share choosing neither party in the generic-ballot average with past midterms at the same point (" + ((UH && UH.source) || "") + "). " +
       "Tooltip trend lines show each place\u2019s presidential margin over time (" + ((DATA.hist && DATA.hist.source) || "") + "), ending in this race\u2019s 2026 projected margin, which updates with the polling and every control. Win probabilities use a logistic function (\u03c3 = " +
       SIGMA + " points); the tipping-point district is the 218th ranked by margin. Inputs: generic ballot " +
       fmtGB(genericBallot) + " (" + (meta.gbSource || "n/a") + ", " + (meta.dataUpdated || "n/a") +
@@ -973,6 +1054,7 @@
   /* ---- first paint ----------------------------------------------------- */
   refreshMetaText();
   renderPollSpark();
+  renderUndSpark();
   render(true);
   setTimeout(() => { SIM = buildSim(20260923); renderSim(); }, 40);
 })();

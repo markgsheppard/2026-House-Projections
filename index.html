@@ -30,7 +30,7 @@
         <div class="slider-row">
           <div class="ballot">
             <div class="ballot-head">
-              <label for="gb-slider">Generic ballot</label>
+              <label for="gb-slider" class="has-tip" data-tip="ballot">Ballot</label>
               <output id="gb-val" for="gb-slider">D +7.5</output>
             </div>
             <input type="range" id="gb-slider" min="-10" max="10" step="0.1" value="7.5"
@@ -38,7 +38,7 @@
           </div>
           <div class="ballot mail" id="mail-wrap">
             <div class="ballot-head">
-              <label for="mail-slider">Mail-In Access</label>
+              <label for="mail-slider" class="has-tip" data-tip="mail">Mail-in</label>
               <output id="mail-val" for="mail-slider">0.0 pts</output>
             </div>
             <input type="range" id="mail-slider" min="0" max="5" step="0.1" value="0"
@@ -46,7 +46,7 @@
           </div>
           <div class="ballot">
             <div class="ballot-head">
-              <label for="econ-slider">Fundamentals</label>
+              <label for="econ-slider" class="has-tip" data-tip="econ">Fundamentals</label>
               <output id="econ-val" for="econ-slider">0%</output>
             </div>
             <input type="range" id="econ-slider" min="0" max="100" step="1" value="0"
@@ -54,7 +54,7 @@
           </div>
           <div class="ballot bias-card" id="bias-wrap">
             <div class="ballot-head">
-              <label id="bias-lbl">Historical polling bias</label>
+              <label id="bias-lbl" class="has-tip" data-tip="bias">Polling bias</label>
               <output id="bias-val">Off</output>
             </div>
             <div class="segmented bias-toggle" role="group" aria-labelledby="bias-lbl">
@@ -64,11 +64,19 @@
           </div>
           <div class="poll-spark" id="poll-spark">
             <div class="ballot-head">
-              <span class="ps-label" title="Generic ballot polling">Polls</span>
+              <span class="ps-label has-tip" data-tip="polls">Polls</span>
               <span class="ps-vals" id="ps-vals"></span>
             </div>
             <svg id="poll-svg" viewBox="0 0 180 44" preserveAspectRatio="none" role="img"></svg>
-            <div class="ps-foot"><span id="ps-x0"></span><span class="ps-und" id="ps-und" title="Average share choosing neither party in polls from the last three weeks (forced-choice polls excluded)"></span><span id="ps-x1"></span></div>
+            <div class="ps-foot"><span id="ps-x0"></span><span id="ps-x1"></span></div>
+          </div>
+          <div class="poll-spark und-spark" id="und-spark">
+            <div class="ballot-head">
+              <span class="ps-label has-tip" data-tip="und">Undecided</span>
+              <span class="ps-und" id="ps-und"></span>
+            </div>
+            <svg id="und-svg" height="34" role="img"></svg>
+            <div class="ps-foot und-legend" id="und-legend"></div>
           </div>
         </div>
         <p class="ctrl-note" id="ballot-note"></p>
@@ -129,19 +137,19 @@
       <p class="lede">Twenty thousand simulated elections. Each run draws one national environment (the expected margin below, &plusmn;6 points of uncertainty) and then decides every seat individually: all 435 districts on their real margins and the 35 Senate races up in 2026, so the House and Senate move together. Each little box is a share of the simulations; the line marks the seats needed for control.</p>
       <div class="sim-controls">
         <div class="ballot">
-          <div class="ballot-head"><label for="sim-mu">Expected margin</label><output id="sim-mu-val">D +7.5</output></div>
+          <div class="ballot-head"><label for="sim-mu" class="has-tip" data-tip="mu">Expected margin</label><output id="sim-mu-val">D +7.5</output></div>
           <input type="range" id="sim-mu" min="-10" max="10" step="0.1" value="7.5" aria-label="Expected national margin" />
         </div>
         <div class="ballot">
-          <div class="ballot-head"><label for="sim-mail">Mail-In Access</label><output id="sim-mail-val">0.0 pts</output></div>
+          <div class="ballot-head"><label for="sim-mail" class="has-tip" data-tip="mail">Mail-in</label><output id="sim-mail-val">0.0 pts</output></div>
           <input type="range" id="sim-mail" min="0" max="5" step="0.1" value="0" aria-label="Mail-in access restriction, national margin drag in points" />
         </div>
         <div class="ballot">
-          <div class="ballot-head"><label for="sim-econ">Fundamentals</label><output id="sim-econ-val">0%</output></div>
+          <div class="ballot-head"><label for="sim-econ" class="has-tip" data-tip="econ">Fundamentals</label><output id="sim-econ-val">0%</output></div>
           <input type="range" id="sim-econ" min="0" max="100" step="1" value="0" aria-label="Fundamentals, state misery penalty intensity" />
         </div>
         <div class="ballot bias-card">
-          <div class="ballot-head"><label id="sim-bias-lbl">Historical polling bias</label><output id="sim-bias-val">Off</output></div>
+          <div class="ballot-head"><label id="sim-bias-lbl" class="has-tip" data-tip="bias">Polling bias</label><output id="sim-bias-val">Off</output></div>
           <div class="segmented bias-toggle" id="sim-bias" role="group" aria-labelledby="sim-bias-lbl">
             <button type="button" data-bias="off" aria-pressed="true">Off</button>
             <button type="button" data-bias="on" aria-pressed="false">On</button>
