@@ -52,13 +52,15 @@
             <input type="range" id="econ-slider" min="0" max="100" step="1" value="0"
                    aria-label="Fundamentals, state misery penalty intensity" />
           </div>
-          <div class="ballot">
+          <div class="ballot bias-card" id="bias-wrap">
             <div class="ballot-head">
-              <label for="bias-slider">Historical polling bias</label>
-              <output id="bias-val" for="bias-slider">0.0 pts</output>
+              <label id="bias-lbl">Historical polling bias</label>
+              <output id="bias-val">Off</output>
             </div>
-            <input type="range" id="bias-slider" min="-5" max="5" step="0.1" value="0"
-                   aria-label="Historical polling bias correction, points; right shifts toward Republicans" />
+            <div class="segmented bias-toggle" role="group" aria-labelledby="bias-lbl">
+              <button type="button" data-bias="off" aria-pressed="true">Off</button>
+              <button type="button" data-bias="on" aria-pressed="false">On</button>
+            </div>
           </div>
           <div class="poll-spark" id="poll-spark">
             <div class="ballot-head">
@@ -90,7 +92,7 @@
           <div class="gauge-d" id="gauge-d"></div>
           <div class="gauge-r" id="gauge-r"></div>
         </div>
-        <div class="gauge-mid"></div>
+        <div class="gauge-mid" id="gauge-mid" data-label="218 needed"></div>
       </div>
     </section>
 
@@ -138,9 +140,12 @@
           <div class="ballot-head"><label for="sim-econ">Fundamentals</label><output id="sim-econ-val">0%</output></div>
           <input type="range" id="sim-econ" min="0" max="100" step="1" value="0" aria-label="Fundamentals, state misery penalty intensity" />
         </div>
-        <div class="ballot">
-          <div class="ballot-head"><label for="sim-bias">Historical polling bias</label><output id="sim-bias-val">0.0 pts</output></div>
-          <input type="range" id="sim-bias" min="-5" max="5" step="0.1" value="0" aria-label="Historical polling bias correction, points" />
+        <div class="ballot bias-card">
+          <div class="ballot-head"><label id="sim-bias-lbl">Historical polling bias</label><output id="sim-bias-val">Off</output></div>
+          <div class="segmented bias-toggle" id="sim-bias" role="group" aria-labelledby="sim-bias-lbl">
+            <button type="button" data-bias="off" aria-pressed="true">Off</button>
+            <button type="button" data-bias="on" aria-pressed="false">On</button>
+          </div>
         </div>
         <button type="button" id="sim-resim" class="resim-btn">Resimulate</button>
       </div>

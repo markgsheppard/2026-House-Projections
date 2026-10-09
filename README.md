@@ -65,14 +65,21 @@ Below the battlegrounds, a 40,000-run Monte Carlo draws a national vote around a
 
 ## Controls row (top)
 Generic ballot · Mail-In Access · Fundamentals (formerly "Economic Parameter") · Historical polling bias · polling sparkline.
-- **Historical polling bias** replaces the old Standard/Plus toggle. It applies a uniform shift to every race; positive values
-  assume the polls overstate Democrats (recent cycles averaged about 2.9 points). The same control appears in the simulator.
+- **Historical polling bias** is an Off/On toggle (it replaces Standard/Plus). On applies a uniform 2.9-point shift toward
+  Republicans to every race, the average recent polling error in Democrats' favor (`pollBias` in data.js). Also in the simulator.
 - **Polling sparkline** smooths the individual generic-ballot polls in the **Polls** sheet (Pollster, Start date, End date, Dem %, Rep %)
   with a two-week kernel; the light band is ±1 SD. **Undecided** = average share choosing neither party in polls from the last
-  three weeks, excluding forced-choice polls (D + R ≥ 98). Add new polls to the Polls sheet and use update or update_forecast.py.
+  three weeks, excluding forced-choice polls (D + R ≥ 98). Hover the sparkline for the average, spread and recent polls on any date.
+  Add new polls to the Polls sheet and use update or update_forecast.py.
 
 ## Tooltip trend lines
-Each district/state tooltip shows the presidential margin (Dem % − Rep %) for 2008–2024, blue above zero and red below.
+Each district/state tooltip shows the presidential margin (Dem % − Rep %) for 2008–2024, then a dashed segment to this race's
+2026 projected margin (a hollow dot), which moves with the polling and every control. Blue above zero, red below.
 Districts: The Downballot's calculations on the 2026 lines for 2024 (and 2020 where available; otherwise 2020 is spliced from the
 2024-line figures); 2008–2016 come from each district's geographic predecessor, shifted to match the 2020 figure on current lines,
 so they show the area's trend rather than exact results on today's boundaries. States: FiveThirtyEight election-results data.
+
+## Data refresh — Oct. 9, 2026
+- Generic ballot D +8.9 (Silver Bulletin, Oct. 8); 79 generic-ballot polls, July 9 – Oct. 5 (RealClearPolling).
+- Senate win probabilities and ratings: Decision Desk HQ / The Hill forecast, Oct. 9.
+- Fundamentals: BLS state unemployment, Aug. 2026, plus CPI-U 12-month inflation, Aug. 2026 (3.4%).
