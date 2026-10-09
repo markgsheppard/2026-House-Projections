@@ -64,6 +64,28 @@ def read_districts(ws, code_to_id):
             pass
     return overrides
 
+def read_polls(ws):
+    """Polls sheet: header row, then Pollster | Start date | End date | Dem % | Rep %."""
+    def iso(v):
+        if isinstance(v, (datetime.datetime, datetime.date)):
+            return v.strftime("%Y-%m-%d")
+        try:
+            return datetime.date.fromisoformat(str(v).strip()[:10]).isoformat()
+        except ValueError:
+            return None
+    polls = []
+    for row in ws.iter_rows(values_only=True):
+        if not row or len(row) < 5 or row[0] is None:
+            continue
+        s0, e0 = iso(row[1]), iso(row[2])
+        try:
+            d, r = float(row[3]), float(row[4])
+        except (TypeError, ValueError):
+            continue
+        if s0 and e0:
+            polls.append([str(row[0]), s0, e0, d, r])
+    return sorted(polls, key=lambda p: p[2])
+
 def main():
     if not xlsx.exists():
         sys.exit(f"Spreadsheet not found: {xlsx}")
@@ -83,6 +105,11 @@ def main():
         for did, m in ov.items():
             fc[did]["margin"] = m
         n_over = len(ov)
+
+    if "Polls" in wb.sheetnames:
+        polls = read_polls(wb["Polls"])
+        if len(polls) >= 3:
+            data["polls"] = polls
 
     # recompute baseline seat tally at the chosen generic ballot (for meta tidiness)
     anchor, gb = meta.get("anchor", 0), meta.get("genericBallot", 6.6)

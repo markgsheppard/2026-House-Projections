@@ -15,10 +15,6 @@
   <header class="site">
     <div class="wrap">
       <a class="brand" href="https://www.markgsheppard.com/" target="_blank" rel="noopener">Mark G. Sheppard</a>
-      <nav class="segmented" id="modes" role="tablist" aria-label="Forecast model">
-        <button role="tab" data-mode="standard" aria-selected="true">Standard</button>
-        <button role="tab" data-mode="plus"     aria-selected="false">Plus</button>
-      </nav>
     </div>
   </header>
 
@@ -50,11 +46,27 @@
           </div>
           <div class="ballot">
             <div class="ballot-head">
-              <label for="econ-slider">Economic Parameter</label>
+              <label for="econ-slider">Fundamentals</label>
               <output id="econ-val" for="econ-slider">0%</output>
             </div>
             <input type="range" id="econ-slider" min="0" max="100" step="1" value="0"
-                   aria-label="Economic parameter, state misery penalty intensity" />
+                   aria-label="Fundamentals, state misery penalty intensity" />
+          </div>
+          <div class="ballot">
+            <div class="ballot-head">
+              <label for="bias-slider">Historical polling bias</label>
+              <output id="bias-val" for="bias-slider">0.0 pts</output>
+            </div>
+            <input type="range" id="bias-slider" min="-5" max="5" step="0.1" value="0"
+                   aria-label="Historical polling bias correction, points; right shifts toward Republicans" />
+          </div>
+          <div class="poll-spark" id="poll-spark">
+            <div class="ballot-head">
+              <span class="ps-label" title="Generic ballot polling">Polls</span>
+              <span class="ps-vals" id="ps-vals"></span>
+            </div>
+            <svg id="poll-svg" viewBox="0 0 180 44" preserveAspectRatio="none" role="img"></svg>
+            <div class="ps-foot"><span id="ps-x0"></span><span class="ps-und" id="ps-und" title="Average share choosing neither party in polls from the last three weeks (forced-choice polls excluded)"></span><span id="ps-x1"></span></div>
           </div>
         </div>
         <p class="ctrl-note" id="ballot-note"></p>
@@ -123,8 +135,12 @@
           <input type="range" id="sim-mail" min="0" max="5" step="0.1" value="0" aria-label="Mail-in access restriction, national margin drag in points" />
         </div>
         <div class="ballot">
-          <div class="ballot-head"><label for="sim-econ">Economic Parameter</label><output id="sim-econ-val">0%</output></div>
-          <input type="range" id="sim-econ" min="0" max="100" step="1" value="0" aria-label="Economic parameter, state misery penalty intensity" />
+          <div class="ballot-head"><label for="sim-econ">Fundamentals</label><output id="sim-econ-val">0%</output></div>
+          <input type="range" id="sim-econ" min="0" max="100" step="1" value="0" aria-label="Fundamentals, state misery penalty intensity" />
+        </div>
+        <div class="ballot">
+          <div class="ballot-head"><label for="sim-bias">Historical polling bias</label><output id="sim-bias-val">0.0 pts</output></div>
+          <input type="range" id="sim-bias" min="-5" max="5" step="0.1" value="0" aria-label="Historical polling bias correction, points" />
         </div>
         <button type="button" id="sim-resim" class="resim-btn">Resimulate</button>
       </div>

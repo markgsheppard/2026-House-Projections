@@ -13,23 +13,23 @@
   /* ---- model -----------------------------------------------------------
      Base margins are each district's lean at an even national vote, so the
      generic-ballot slider IS the national Democratic margin (anchor 0).
-     'plus' layers on the Mail-In Access model: restricting mail voting is a
-     non-uniform Democratic turnout drag, shock = severity x 2024 mail share x
-     mail Dem-skew, applied per state (see the footer note). */
+     Mail-In Access models restricting mail voting as a non-uniform Democratic
+     turnout drag, shock = severity x 2024 mail share x mail Dem-skew, applied
+     per state; Historical polling bias is a uniform correction (see footer). */
   const ANCHOR = (typeof meta.anchor === "number") ? meta.anchor : 0;
   let genericBallot = (typeof meta.genericBallot === "number") ? meta.genericBallot : 7.5;
   const MAIL = mail || {};
   const ECON = DATA.econ || {};                 // { ST: { m: misery index, g: governor party } }
   const ECON_THRESH = (typeof meta.econThreshold === "number") ? meta.econThreshold : 7.5;
   const ECON_MAX = (typeof meta.econMax === "number") ? meta.econMax : 1.5;
-  let mode = "standard";
   let mailDrag = 0;                     // target national Dem-margin drag, points (0..5)
-  let econLevel = 0;                    // Economic Parameter slider, 0..100
-  const POLLBIAS = (typeof meta.pollBias === "number") ? meta.pollBias : 2.9; // Plus: correct recent D-favoring bias
+  let econLevel = 0;                    // Fundamentals slider, 0..100
+  const POLLBIAS = (typeof meta.pollBias === "number") ? meta.pollBias : 2.9; // historical average D-favoring polling error (reference)
+  let biasPts = 0;                      // Historical polling bias slider, points (+ = polls overstate Democrats)
   const SIGMA = 3.5;
   const logistic = (m, s) => 1 / (1 + Math.exp(-m / s));
 
-  // Economic Parameter: in a state whose misery index is above the threshold,
+  // Fundamentals: in a state whose misery index is above the threshold,
   // scale up to ECON_MAX points against the party holding that governorship.
   function econShock(stateCode) {
     const e = ECON[stateCode];
@@ -53,10 +53,10 @@
     return n ? sum / n : 0;
   }
 
-  // effective per-district numbers. Generic ballot + Mail-In Access apply in both
-  // modes; Plus adds a uniform polling-bias correction (toward Republicans).
+  // effective per-district numbers: generic ballot + Mail-In Access + Fundamentals,
+  // less a uniform historical polling-bias correction.
   function effective(d) {
-    const bias = (mode === "plus") ? -POLLBIAS : 0;
+    const bias = -biasPts;
     const margin = d.margin + (genericBallot - ANCHOR) + mailShock(d.state) + econShock(d.state) + bias;
     return {
       margin,
@@ -149,7 +149,7 @@
   function senMargin(st) {
     const rc = senByState[st]; if (!rc) return null;
     const base = SEN_KSD * probit(rc.p);              // race margin at the reference environment
-    const bias = (mode === "plus") ? -POLLBIAS : 0;
+    const bias = -biasPts;
     return base + (genericBallot - SEN_MU0) + mailShock(st) + econShock(st) + bias;
   }
   function senProb(m) { return Math.max(0.002, Math.min(0.998, normCdf(m / SEN_KSD))); }
@@ -202,7 +202,8 @@
        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
        <div class="t-row"><span style="color:var(--gop)">GOP hold</span><b>${rp}%</b></div>
        <div class="t-row"><span style="color:var(--dem)">DEM hold</span><b>${dp}%</b></div>
-       ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}`;
+       ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}
+       ${histSpark((HIST.district || {})[f.code])}`;
     tooltip.classList.add("on");
     tooltip.setAttribute("aria-hidden", "false");
     moveTip(evt);
@@ -237,7 +238,8 @@
       const held = g === "D" ? "2 Democrats" : g === "R" ? "2 Republicans" : "Split delegation";
       tooltip.innerHTML = `<div class="t-code">${st}</div>
         <div class="t-row"><span>Not up in 2026</span><b></b></div>
-        <div class="t-row"><span>Held by</span><b>${held}</b></div>`;
+        <div class="t-row"><span>Held by</span><b>${held}</b></div>
+        ${histSpark((HIST.state || {})[st])}`;
     } else {
       const m = senMargin(st), dp = Math.round(senProb(m) * 100), rp = 100 - dp;
       const isTip = st === senTipState;
@@ -247,7 +249,8 @@
         <div class="t-row"><span style="color:var(--gop)">GOP win</span><b>${rp}%</b></div>
         <div class="t-row"><span style="color:var(--dem)">DEM win</span><b>${dp}%</b></div>
         <div class="t-row"><span>Held by</span><b>${rc.held === "D" ? "Democrat" : "Republican"}</b></div>
-        ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}`;
+        ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
+        ${histSpark((HIST.state || {})[st])}`;
     }
     tooltip.classList.add("on");
     tooltip.setAttribute("aria-hidden", "false");
@@ -257,6 +260,98 @@
     gHi.append("path").attr("d", path(d)).attr("fill", senColor(st)).attr("class", "senate-state hot");
   }
   senatePaths.on("mouseenter", showSenTip).on("mousemove", moveTip).on("mouseleave", hideTip);
+
+  /* ---- history sparklines for the tooltip ------------------------------ */
+  // Presidential margin over time; the line is blue above zero, red below.
+  const HIST = DATA.hist || {};
+  const HYEARS = HIST.years || [2008, 2012, 2016, 2020, 2024];
+  let sparkSeq = 0;
+  function histSpark(series) {
+    if (!series || series.filter(v => v != null).length < 2) return "";
+    const W = 168, H = 38, pl = 2, pr = 2, pt = 4, pb = 4;
+    const pts = series.map((v, i) => v == null ? null : [i, v]).filter(Boolean);
+    const vals = pts.map(p => p[1]);
+    const lo = Math.min(-4, ...vals) - 2, hi = Math.max(4, ...vals) + 2;
+    const x = i => pl + i * (W - pl - pr) / (HYEARS.length - 1);
+    const y = v => pt + (hi - v) * (H - pt - pb) / (hi - lo);
+    const y0 = y(0).toFixed(1);
+    const d = pts.map((p, k) => (k ? "L" : "M") + x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1)).join("");
+    const id = "hs" + (++sparkSeq);
+    const dots = pts.map(p => `<circle cx="${x(p[0]).toFixed(1)}" cy="${y(p[1]).toFixed(1)}" r="1.8" fill="${p[1] >= 0 ? "var(--dem)" : "var(--gop)"}"/>`).join("");
+    const first = HYEARS[pts[0][0]], last = HYEARS[pts[pts.length - 1][0]];
+    return `<div class="t-spark">
+      <div class="t-spark-h"><span>Presidential margin</span><span>${fmtMargin(vals[vals.length - 1])} in ${last}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+        <defs>
+          <clipPath id="${id}a"><rect x="0" y="0" width="${W}" height="${y0}"/></clipPath>
+          <clipPath id="${id}b"><rect x="0" y="${y0}" width="${W}" height="${(H - y0).toFixed(1)}"/></clipPath>
+        </defs>
+        <line x1="0" x2="${W}" y1="${y0}" y2="${y0}" stroke="#c8ccd1" stroke-width="1" stroke-dasharray="2 2"/>
+        <path d="${d}" fill="none" stroke="var(--dem)" stroke-width="1.6" stroke-linejoin="round" clip-path="url(#${id}a)"/>
+        <path d="${d}" fill="none" stroke="var(--gop)" stroke-width="1.6" stroke-linejoin="round" clip-path="url(#${id}b)"/>
+        ${dots}
+      </svg>
+      <div class="t-spark-x"><span>${first}</span><span>${last}</span></div>
+    </div>`;
+  }
+
+  /* ---- generic-ballot polling sparkline + undecided --------------------- */
+  const POLLS = (DATA.polls || []).map(p => {
+    const s0 = Date.parse(p[1]), e0 = Date.parse(p[2]);
+    return { who: p[0], t: (s0 + e0) / 2, end: e0, d: +p[3], r: +p[4] };
+  }).filter(p => isFinite(p.t) && isFinite(p.d) && isFinite(p.r)).sort((a, b) => a.t - b.t);
+  const DAY = 864e5;
+  function smoothPolls() {
+    if (POLLS.length < 3) return [];
+    const bw = 7 * DAY, t0 = POLLS[0].t, t1 = POLLS[POLLS.length - 1].t, out = [];
+    for (let t = t0; t <= t1 + 1; t += DAY) {
+      let w = 0, sd = 0, sr = 0;
+      const ws = POLLS.map(p => Math.exp(-0.5 * Math.pow((t - p.t) / bw, 2)));
+      POLLS.forEach((p, i) => { w += ws[i]; sd += ws[i] * p.d; sr += ws[i] * p.r; });
+      const md = sd / w, mr = sr / w;
+      let vd = 0, vr = 0;
+      POLLS.forEach((p, i) => { vd += ws[i] * (p.d - md) ** 2; vr += ws[i] * (p.r - mr) ** 2; });
+      out.push({ t, d: md, r: mr, sdd: Math.sqrt(vd / w), sdr: Math.sqrt(vr / w) });
+    }
+    return out;
+  }
+  function undecidedShare() {
+    if (!POLLS.length) return null;
+    const last = POLLS[POLLS.length - 1].end;
+    const rec = POLLS.filter(p => p.end >= last - 21 * DAY && p.d + p.r < 98);   // skip forced-choice polls
+    if (!rec.length) return null;
+    return rec.reduce((a, p) => a + (100 - p.d - p.r), 0) / rec.length;
+  }
+  function renderPollSpark() {
+    const svgEl = document.getElementById("poll-svg"), wrap = document.getElementById("poll-spark");
+    if (!svgEl || !wrap) return;
+    const sm = smoothPolls();
+    if (!sm.length) { wrap.style.display = "none"; return; }
+    const W = 180, H = 44, pad = 2;
+    let lo = Infinity, hi = -Infinity;
+    sm.forEach(p => { lo = Math.min(lo, p.r - p.sdr, p.d - p.sdd); hi = Math.max(hi, p.d + p.sdd, p.r + p.sdr); });
+    const t0 = sm[0].t, t1 = sm[sm.length - 1].t;
+    const x = t => pad + (t - t0) / ((t1 - t0) || 1) * (W - 2 * pad);
+    const y = v => pad + (hi - v) / ((hi - lo) || 1) * (H - 2 * pad);
+    const line = k => sm.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + "," + y(p[k]).toFixed(1)).join("");
+    const band = (k, sk) => sm.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + "," + y(p[k] + p[sk]).toFixed(1)).join("") +
+      sm.slice().reverse().map(p => "L" + x(p.t).toFixed(1) + "," + y(p[k] - p[sk]).toFixed(1)).join("") + "Z";
+    svgEl.innerHTML =
+      `<path d="${band("r", "sdr")}" fill="var(--gop)" opacity=".09"/>` +
+      `<path d="${band("d", "sdd")}" fill="var(--dem)" opacity=".09"/>` +
+      `<path d="${line("r")}" fill="none" stroke="var(--gop)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>` +
+      `<path d="${line("d")}" fill="none" stroke="var(--dem)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    const lastP = sm[sm.length - 1];
+    const und = undecidedShare();
+    const fmtD = t => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    document.getElementById("ps-vals").innerHTML =
+      `<b style="color:var(--dem)">D ${lastP.d.toFixed(1)}</b> <b style="color:var(--gop)">R ${lastP.r.toFixed(1)}</b>`;
+    document.getElementById("ps-und").textContent = und == null ? "" : Math.round(und) + "% undecided";
+    document.getElementById("ps-x0").textContent = fmtD(t0);
+    document.getElementById("ps-x1").textContent = fmtD(POLLS[POLLS.length - 1].end);
+    svgEl.setAttribute("aria-label", `Generic ballot polling average: Democrats ${lastP.d.toFixed(1)}, Republicans ${lastP.r.toFixed(1)}` +
+      (und == null ? "" : `, ${Math.round(und)}% undecided`));
+  }
 
   /* ---- topline + gauge + verdict --------------------------------------- */
   const elDem = document.getElementById("dem-seats");
@@ -389,7 +484,7 @@
     });
   }
 
-  /* ---- Mail-In Access slider (applies in both modes) ------------------- */
+  /* ---- Mail-In Access slider ------------------------------------------- */
   const mailWrap = document.getElementById("mail-wrap");
   const mailSlider = document.getElementById("mail-slider");
   const mailVal = document.getElementById("mail-val");
@@ -405,7 +500,7 @@
     });
   }
 
-  /* ---- Economic Parameter slider (state misery, both modes) ------------ */
+  /* ---- Fundamentals slider (state misery) ------------------------------ */
   const econSlider = document.getElementById("econ-slider");
   const econVal = document.getElementById("econ-val");
   if (econSlider) {
@@ -416,17 +511,20 @@
     });
   }
 
-  /* ---- model switching (Plus = polling-bias correction) ---------------- */
-  const modeNav = document.getElementById("modes");
-  if (modeNav) modeNav.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-mode]");
-    if (!btn) return;
-    mode = btn.dataset.mode;
-    modeNav.querySelectorAll("button").forEach(b =>
-      b.setAttribute("aria-selected", b === btn ? "true" : "false"));
-    render(true);
-    renderSim();
-  });
+  /* ---- Historical polling bias slider (uniform correction) ------------- */
+  const biasSlider = document.getElementById("bias-slider");
+  const biasVal = document.getElementById("bias-val");
+  function fmtBias(v) {
+    if (Math.abs(v) < 0.05) return "0.0 pts";
+    return (v > 0 ? "-" : "+") + Math.abs(v).toFixed(1) + " pts";   // shift to the Dem margin
+  }
+  if (biasSlider) {
+    biasSlider.addEventListener("input", () => {
+      biasPts = +biasSlider.value;
+      if (biasVal) biasVal.textContent = fmtBias(biasPts);
+      render(false);
+    });
+  }
 
   /* ---- meta-driven text (refreshes whenever data changes) -------------- */
   const frozenEl  = document.getElementById("frozen");
@@ -441,16 +539,21 @@
     if (stampEl)  stampEl.textContent  = meta.shapefileNote || "";
     if (ballotNote) ballotNote.textContent =
       "The generic ballot is based on generic-ballot polling, Mail-In Access is an estimate from " +
-      "voting-restriction models, and the Plus model corrects for polling bias, based on data.";
+      "voting-restriction models, Fundamentals reflects state economic stress, and Historical polling bias " +
+      "shifts every race by the chosen polling error (recent cycles averaged about " + POLLBIAS + " points toward Democrats).";
     if (footnoteEl) footnoteEl.textContent = meta.note || "";
     if (boundaryEl && meta.boundaryNote) boundaryEl.textContent = meta.boundaryNote;
     if (techEl) techEl.textContent =
       "Method: the generic-ballot slider applies a uniform national swing to every district\u2019s baseline " +
       "margin, so its value is the national vote margin; Mail-In Access is an estimate of a non-uniform turnout " +
-      "effect from voting-restriction models, scaled by each state\u2019s 2024 mail share; the Economic Parameter models " +
+      "effect from voting-restriction models, scaled by each state\u2019s 2024 mail share; Fundamentals models " +
       "state economic stress: in any state whose misery index (unemployment plus inflation) exceeds " + ECON_THRESH +
-      ", the slider applies up to " + ECON_MAX + " points against the party holding that state\u2019s governorship; and the Plus model " +
-      "corrects for recent polling bias, based on data. Win probabilities use a logistic function (\u03c3 = " +
+      ", the slider applies up to " + ECON_MAX + " points against the party holding that state\u2019s governorship; and Historical " +
+      "polling bias applies a uniform correction for systematic polling error (positive values assume the polls overstate Democrats; " +
+      "recent cycles averaged about " + POLLBIAS + " points). The polling sparkline smooths individual generic-ballot polls " +
+      "(" + (meta.pollSource || "public polls") + ") with a two-week kernel; the light band is \u00b11 standard deviation of the polls. " +
+      "Undecided is the average share choosing neither party in polls from the last three weeks, excluding forced-choice polls. " +
+      "Tooltip trend lines show presidential margins over time (" + ((DATA.hist && DATA.hist.source) || "") + "). Win probabilities use a logistic function (\u03c3 = " +
       SIGMA + " points); the tipping-point district is the 218th ranked by margin. Inputs: generic ballot " +
       fmtGB(genericBallot) + " (" + (meta.gbSource || "n/a") + ", " + (meta.dataUpdated || "n/a") +
       "). Figures are illustrative. Election: Nov. 3, 2026.";
@@ -506,6 +609,25 @@
       if (n) SIM = buildSim(20260923);   // rebuild draws with the new Senate odds
       console.log("senate overrides applied:", n);
     }
+    // Polls sheet: header row, then [Pollster, Start date, End date, Dem %, Rep %]
+    const pollSheet = wb.Sheets["Polls"];
+    if (pollSheet) {
+      const rows = XLSX.utils.sheet_to_json(pollSheet, { header: 1, blankrows: false });
+      const isoOf = v => { const t = (typeof v === "number") ? new Date(Math.round((v - 25569) * 864e5)) : new Date(v); return isNaN(t) ? null : t.toISOString().slice(0, 10); };
+      const np = [];
+      for (const r of rows) {
+        const s0 = isoOf(r[1]), e0 = isoOf(r[2]), dv = parseFloat(r[3]), rv = parseFloat(r[4]);
+        if (s0 && e0 && !isNaN(dv) && !isNaN(rv)) np.push([String(r[0] ?? ""), s0, e0, dv, rv]);
+      }
+      if (np.length >= 3) {
+        DATA.polls = np;
+        POLLS.length = 0;
+        np.map(p => ({ who: p[0], t: (Date.parse(p[1]) + Date.parse(p[2])) / 2, end: Date.parse(p[2]), d: p[3], r: p[4] }))
+          .sort((a, b) => a.t - b.t).forEach(p => POLLS.push(p));
+        renderPollSpark();
+      }
+      console.log("polls loaded:", np.length);
+    }
     // if no explicit date in the sheet, stamp with the file's modified time
     if (file && !foundDate) {
       meta.dataUpdated = formatDate(new Date(file.lastModified));
@@ -559,10 +681,13 @@
         .forEach(f => dist.push([f.code, Math.round(f.margin * 10) / 10, f.state]));
       const sen = [["State", "Dem win %", "Rating", "Held"]];
       SENRACES.forEach(rc => sen.push([rc.st, Math.round(rc.p * 100), rc.rating || "", rc.held || ""]));
+      const polls = [["Pollster", "Start date", "End date", "Dem %", "Rep %"]];
+      (DATA.polls || []).forEach(p => polls.push(p.slice(0, 5)));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inputs), "Inputs");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dist), "Districts");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sen), "Senate");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(polls), "Polls");
       XLSX.writeFile(wb, "house-polling.xlsx");
       flash("Downloaded current data: house-polling.xlsx");
     });
@@ -612,7 +737,7 @@
     const ND = bases.length;
     // per-district mail-in shock per point of drag (state mail share x Dem-skew), and codes
     const mUnitH = Float64Array.from(flist.map(f => { const mm = MAIL[f.state]; return mm && MAILK > 0 ? -(mm.share * mm.skew) / MAILK : 0; }));
-    // per-seat Economic-Parameter shock at full (100%) intensity
+    // per-seat Fundamentals shock at full (100%) intensity
     const eUnit = st => { const e = ECON[st]; return (e && e.m > ECON_THRESH) ? (e.g === "D" ? -1 : 1) * ECON_MAX : 0; };
     const eUnitH = Float64Array.from(flist.map(f => eUnit(f.state)));
     const codesH = flist.map(f => f.code);
@@ -702,7 +827,8 @@
   const simEconS = document.getElementById("sim-econ"), simEconV = document.getElementById("sim-econ-val");
   const simResim = document.getElementById("sim-resim");
   const hSvg = document.getElementById("sim-house"), sSvg = document.getElementById("sim-senate");
-  let simMailDrag = 0, simEcon = 0;
+  let simMailDrag = 0, simEcon = 0, simBias = 0;
+  const simBiasS = document.getElementById("sim-bias"), simBiasV = document.getElementById("sim-bias-val");
   let houseHit = null, senHit = null;   // per-render hover data for the two charts
 
   function setHead(id, name, o, extra) {
@@ -712,7 +838,7 @@
   function renderSim() {
     if (!SIM) return;
     const cols = { cDem: C('--dem') || '#2e74d0', cGop: C('--gop') || '#e24b38', cInk: C('--ink') || '#0f1115', cFaint: C('--ink-faint') || '#9aa0a8', fSans: C('--sans') || 'sans-serif' };
-    const muEff = simMu + (mode === "plus" ? -POLLBIAS : 0);   // Plus = level shift toward Republicans
+    const muEff = simMu - simBias;   // uniform polling-bias correction
     const r = SIM.run(muEff, simMailDrag, simEcon);
     // pivotal-seat rankings at the current settings (safest Democratic first)
     const hEff = SIM.houseEff(muEff, simMailDrag, simEcon).sort((a, b) => b.m - a.m);
@@ -740,7 +866,7 @@
           <div class="t-row"><span>Pivotal state</span><b>${piv}</b></div>`;
       }
     };
-    const tag = (mode === "plus") ? ` \u00b7 Plus -${POLLBIAS}` : "";
+    const tag = (Math.abs(simBias) >= 0.05) ? ` \u00b7 bias ${fmtBias(simBias)}` : "";
     setHead("sim-h-head", "House", r.house, tag);
     setHead("sim-s-head", "Senate", r.senate, (senTip ? ` \u00b7 tips on ${senTip}` : "") + tag);
   }
@@ -780,6 +906,9 @@
   if (simEconS) {
     simEconS.addEventListener("input", () => { simEcon = +simEconS.value; if (simEconV) simEconV.textContent = simEcon + "%"; renderSim(); });
   }
+  if (simBiasS) {
+    simBiasS.addEventListener("input", () => { simBias = +simBiasS.value; if (simBiasV) simBiasV.textContent = fmtBias(simBias); renderSim(); });
+  }
   if (simResim) {
     simResim.addEventListener("click", () => {
       simResim.disabled = true;
@@ -791,6 +920,7 @@
 
   /* ---- first paint ----------------------------------------------------- */
   refreshMetaText();
+  renderPollSpark();
   render(true);
   setTimeout(() => { SIM = buildSim(20260923); renderSim(); }, 40);
 })();

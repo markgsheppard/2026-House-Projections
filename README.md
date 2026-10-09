@@ -14,7 +14,6 @@ An interactive U.S. House forecast map. Two ways to update it from a spreadsheet
 ## What you can edit in house-polling.xlsx
 **Inputs** sheet (the blue/yellow cells):
 - **Generic ballot (Dem margin, points)** — the national environment; sets where the slider opens. 0–10.
-- **Redistricting shift — Plus (points)** — the Plus model's baseline shift (negative = toward Republicans).
 - **Generic ballot source** — text shown in the small-print note under the slider.
 - **Data updated (date)** — stamps the "Model run · …" line. Leave blank to use the file's save date.
 
@@ -48,8 +47,8 @@ with the new numbers and an auto-stamped date. Requires Python with `openpyxl`
   NJ-2022 court maps); the 2025–26 mid-decade redraws are reflected in the projections, not the lines.
 
 
-## Mail-In Access (the Plus model)
-Selecting **Plus** reveals a second slider under the generic ballot, **Mail-In Access**, that models mail-voting restrictions as a *non-uniform* Democratic turnout drag:
+## Mail-In Access
+The **Mail-In Access** slider models mail-voting restrictions as a *non-uniform* Democratic turnout drag:
 
 `shock(state) = severity x 2024 mail share x mail Dem-skew`
 
@@ -62,3 +61,18 @@ Effect concentrates in moderate-mail swing states (PA, MI, NV, WI, AZ); universa
 
 ## Simulated outcomes (Monte Carlo)
 Below the battlegrounds, a 40,000-run Monte Carlo draws a national vote around an expected margin (with an uncertainty slider) and applies it across all 435 real district margins, adding seat-level noise, to produce a distribution of Democratic seat totals. Bars are blue at/above 218 (majority) and red below; readouts show the majority probability, median seats, and the 80% interval. Runs entirely in-browser (~3 ms/run) on the same data as the map. Illustrative.
+
+
+## Controls row (top)
+Generic ballot · Mail-In Access · Fundamentals (formerly "Economic Parameter") · Historical polling bias · polling sparkline.
+- **Historical polling bias** replaces the old Standard/Plus toggle. It applies a uniform shift to every race; positive values
+  assume the polls overstate Democrats (recent cycles averaged about 2.9 points). The same control appears in the simulator.
+- **Polling sparkline** smooths the individual generic-ballot polls in the **Polls** sheet (Pollster, Start date, End date, Dem %, Rep %)
+  with a two-week kernel; the light band is ±1 SD. **Undecided** = average share choosing neither party in polls from the last
+  three weeks, excluding forced-choice polls (D + R ≥ 98). Add new polls to the Polls sheet and use update or update_forecast.py.
+
+## Tooltip trend lines
+Each district/state tooltip shows the presidential margin (Dem % − Rep %) for 2008–2024, blue above zero and red below.
+Districts: The Downballot's calculations on the 2026 lines for 2024 (and 2020 where available; otherwise 2020 is spliced from the
+2024-line figures); 2008–2016 come from each district's geographic predecessor, shifted to match the 2020 figure on current lines,
+so they show the area's trend rather than exact results on today's boundaries. States: FiveThirtyEight election-results data.
