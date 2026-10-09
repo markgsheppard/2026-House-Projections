@@ -402,7 +402,7 @@
 
   /* ---- undecided share vs. past midterms (aligned by days to Election Day) -- */
   const UH = DATA.undecidedHistory || null;
-  const UND_COL = { 2010: "#c9a96e", 2014: "#9bb5a6", 2018: "#a99bc4", 2022: "#9aa7b8", 2026: "#2b2f36" };
+  const UND_COL = { 2010: "#d3d6da", 2014: "#bcc0c5", 2018: "#a3a8ae", 2022: "#868c93", 2026: "#2b2f36" };
   let undChart = null;
   function renderUndSpark() {
     const svgEl = document.getElementById("und-svg"), wrap = document.getElementById("und-spark");
@@ -446,7 +446,7 @@
       const rows = undChart.years.slice().reverse().map(y => {
         const s = UH.series[y]; let best = null, bd = Infinity;
         s.forEach(p => { const dd = Math.abs(p[0] - day); if (dd < bd) { bd = dd; best = p; } });
-        return (best && bd <= 3) ? `<div class="t-row"><span style="color:${UND_COL[y]}">${y}</span><b>${best[1].toFixed(1)}%</b></div>` : "";
+        return (best && bd <= 3) ? `<div class="t-row"><span><i class="t-sw" style="background:${UND_COL[y]}"></i>${y}</span><b>${best[1].toFixed(1)}%</b></div>` : "";
       }).join("");
       tooltip.innerHTML = `<div class="t-code">${day} days out</div><div class="t-sub">Undecided on the generic ballot</div>${rows}`;
       tooltip.classList.add("on"); tooltip.setAttribute("aria-hidden", "false");
