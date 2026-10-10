@@ -18,6 +18,12 @@
      per state; Historical polling bias is a uniform correction (see footer). */
   const ANCHOR = (typeof meta.anchor === "number") ? meta.anchor : 0;
   let genericBallot = (typeof meta.genericBallot === "number") ? meta.genericBallot : 7.5;
+  // Poll series declared early so effective()/senMargin() can reach it during init
+  const DAY = 864e5;
+  const POLLS = (DATA.polls || []).map(p => {
+    const s0 = Date.parse(p[1]), e0 = Date.parse(p[2]);
+    return { who: p[0], t: (s0 + e0) / 2, end: e0, d: +p[3], r: +p[4] };
+  }).filter(p => isFinite(p.t) && isFinite(p.d) && isFinite(p.r)).sort((a, b) => a.t - b.t);
   const MAIL = mail || {};
   const ECON = DATA.econ || {};                 // { ST: { m: misery index, g: governor party } }
   const ECON_THRESH = (typeof meta.econThreshold === "number") ? meta.econThreshold : 7.5;
@@ -26,6 +32,22 @@
   let econLevel = 0;                    // Fundamentals slider, 0..100
   const POLLBIAS = (typeof meta.pollBias === "number") ? meta.pollBias : 2.9; // historical average D-favoring polling error (reference)
   let biasPts = 0;                      // Historical polling bias toggle: 0 (off) or POLLBIAS (on), points toward Republicans
+  let regOn = false;                    // mean-reversion: project the ballot onto the historical ballot-vs-result line
+  // Fit OLS (actual House popular vote on generic ballot) from the historical record
+  const GBH = (DATA.gbHist && DATA.gbHist.rows) || [];
+  let REG = { a: 0, b: 1, r2: 0, rse: 0, n: GBH.length };
+  (function () {
+    if (GBH.length < 3) return;
+    const xs = GBH.map(r => r[2]), ys = GBH.map(r => r[3]), n = xs.length;
+    const mx = xs.reduce((s, v) => s + v, 0) / n, my = ys.reduce((s, v) => s + v, 0) / n;
+    const b = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / xs.reduce((s, x) => s + (x - mx) ** 2, 0);
+    const a = my - b * mx;
+    const ssr = ys.reduce((s, y, i) => s + (y - (a + b * xs[i])) ** 2, 0);
+    const sst = ys.reduce((s, y) => s + (y - my) ** 2, 0);
+    REG = { a, b, r2: 1 - ssr / sst, rse: Math.sqrt(ssr / (n - 2)), n };
+  })();
+  function regProj(gb) { return REG.a + REG.b * gb; }     // projected House popular vote margin
+  function regAdj() { return regOn ? (regProj(genericBallot) - genericBallot) : 0; }
   const SIGMA = 3.5;
   const logistic = (m, s) => 1 / (1 + Math.exp(-m / s));
 
@@ -57,7 +79,7 @@
   // less a uniform historical polling-bias correction.
   function effective(d) {
     const bias = -biasPts;
-    const margin = d.margin + (genericBallot - ANCHOR) + mailShock(d.state) + econShock(d.state) + bias;
+    const margin = d.margin + (genericBallot - ANCHOR) + mailShock(d.state) + econShock(d.state) + bias + regAdj();
     return {
       margin,
       demProb: Math.max(0.002, Math.min(0.998, logistic(margin, SIGMA))),
@@ -150,7 +172,7 @@
     const rc = senByState[st]; if (!rc) return null;
     const base = SEN_KSD * probit(rc.p);              // race margin at the reference environment
     const bias = -biasPts;
-    return base + (genericBallot - SEN_MU0) + mailShock(st) + econShock(st) + bias;
+    return base + (genericBallot - SEN_MU0) + mailShock(st) + econShock(st) + bias + regAdj();
   }
   function senProb(m) { return Math.max(0.002, Math.min(0.998, normCdf(m / SEN_KSD))); }
   const SEN_NOTUP = meta.senateNotUp || {};        // { ST: 'D' | 'R' | 'split' } for the 15 states not on the ballot
@@ -291,7 +313,7 @@
     const clip = (path, dash) => `<path d="${path}" fill="none" stroke="var(--dem)" stroke-width="1.6" stroke-linejoin="round"${dash} clip-path="url(#${id}a)"/>` +
                                  `<path d="${path}" fill="none" stroke="var(--gop)" stroke-width="1.6" stroke-linejoin="round"${dash} clip-path="url(#${id}b)"/>`;
     const head = hasProj
-      ? `<span>Partisan lean, ${YRS[0]}–2026</span><span>${fmtMargin(proj)} in 2026</span>`
+      ? `<span>Partisan lean, ${YRS[0]} to 2026</span><span>${fmtMargin(proj)} in 2026</span>`
       : `<span>Presidential margin</span><span>${fmtMargin(last[1])} in ${last[0]}</span>`;
     return `<div class="t-spark">
       <div class="t-spark-h">${head}</div>
@@ -309,11 +331,6 @@
   }
 
   /* ---- generic-ballot polling sparkline + undecided --------------------- */
-  const POLLS = (DATA.polls || []).map(p => {
-    const s0 = Date.parse(p[1]), e0 = Date.parse(p[2]);
-    return { who: p[0], t: (s0 + e0) / 2, end: e0, d: +p[3], r: +p[4] };
-  }).filter(p => isFinite(p.t) && isFinite(p.d) && isFinite(p.r)).sort((a, b) => a.t - b.t);
-  const DAY = 864e5;
   function smoothPolls() {
     if (POLLS.length < 3) return [];
     const bw = 7 * DAY, t0 = POLLS[0].t, t1 = POLLS[POLLS.length - 1].t, out = [];
@@ -467,6 +484,7 @@
     bias: ["Polling bias", "Historical polling bias. On shifts every race " + POLLBIAS + " points toward Republicans, the average recent polling error in Democrats’ favor. Off takes the polls at face value."],
     polls: ["Polls", "Generic-ballot polls, smoothed with a two-week kernel. Lines are the Democratic (blue) and Republican (red) averages; the light bands are ±1 standard deviation. Hover the chart for any date."],
     und: ["Undecided", "Share choosing neither party in the generic-ballot average (100 minus D and R), lined up by days before Election Day for 2026 and the last four midterms. The dashed line marks today."],
+    reg: ["Mean reversion", "Projects the generic ballot onto the historical ballot-vs-result line (actual = " + REG.a.toFixed(1) + " + " + REG.b.toFixed(2) + " × ballot, R² " + REG.r2.toFixed(2) + "). The leading party has usually won by a bit less than the final ballot. On applies the projection to the whole model. It overlaps with Polling bias and Undecided break, so use one lens, not all three."],
     mu: ["Expected margin", "The national Democratic margin each simulation is centered on, before ±6 points of uncertainty."]
   };
   document.querySelectorAll(".has-tip").forEach(el => {
@@ -543,7 +561,7 @@
       rows = Object.keys(forecast).map(id => {
         const f = forecast[id]; const e = effective(f);
         return { code: f.code, margin: e.margin, demProb: e.demProb };
-      }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 24);
+      }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 9);
     }
     bgWrap.innerHTML = rows.map(r => {
       const dp = Math.round(r.demProb * 100), rp = 100 - dp;
@@ -584,6 +602,7 @@
     recolor(animate);
     renderTopline(animate);
     renderBattlegrounds();
+    if (typeof renderReg === "function") renderReg();
   }
 
   /* ---- chamber toggle (House / Senate) --------------------------------- */
@@ -659,6 +678,98 @@
   }
   biasToggle(document.querySelector("#bias-wrap .bias-toggle"), document.getElementById("bias-val"),
     v => { biasPts = v; render(true); });
+
+  /* ---- Mean-reversion (regression) chart + toggle ---------------------- */
+  let regPts = [];
+  function renderReg() {
+    const svg = document.getElementById("reg-svg");
+    if (!svg || !GBH.length) return;
+    const cDem = C('--dem') || '#2e74d0', cGop = C('--gop') || '#e24b38',
+          cInk = C('--ink') || '#0f1115', cFaint = C('--ink-faint') || '#9aa0a8',
+          cLine = C('--line') || '#e6e7e9', cGold = C('--gold') || '#c08a2d', fSans = C('--sans') || 'sans-serif';
+    const W = 1000, H = 560, mL = 80, mR = 28, mT = 22, mB = 80;
+    const pw = W - mL - mR, ph = H - mT - mB;
+    const lim = 13;                                   // symmetric axis range (D-R points)
+    const X = v => mL + (v + lim) / (2 * lim) * pw;
+    const Y = v => mT + (lim - v) / (2 * lim) * ph;
+    let s = "";
+    // grid + zero axes
+    for (let g = -10; g <= 10; g += 5) {
+      s += `<line x1="${X(g).toFixed(1)}" y1="${mT}" x2="${X(g).toFixed(1)}" y2="${mT + ph}" stroke="${cLine}" stroke-width="${g === 0 ? 1.4 : 0.7}"/>`;
+      s += `<line x1="${mL}" y1="${Y(g).toFixed(1)}" x2="${mL + pw}" y2="${Y(g).toFixed(1)}" stroke="${cLine}" stroke-width="${g === 0 ? 1.4 : 0.7}"/>`;
+      s += `<text x="${X(g).toFixed(1)}" y="${mT + ph + 28}" text-anchor="middle" font-family="${fSans}" font-size="21" fill="${cFaint}">${g === 0 ? "even" : (g > 0 ? "D+" + g : "R+" + (-g))}</text>`;
+      s += `<text x="${mL - 11}" y="${(Y(g) + 7).toFixed(1)}" text-anchor="end" font-family="${fSans}" font-size="21" fill="${cFaint}">${g === 0 ? "even" : (g > 0 ? "D+" + g : "R+" + (-g))}</text>`;
+    }
+    // 1:1 diagonal (ballot == result)
+    s += `<line x1="${X(-lim).toFixed(1)}" y1="${Y(-lim).toFixed(1)}" x2="${X(lim).toFixed(1)}" y2="${Y(lim).toFixed(1)}" stroke="${cFaint}" stroke-width="1" stroke-dasharray="4 4" opacity="0.7"/>`;
+    // regression line
+    const x0 = -lim, x1 = lim;
+    s += `<line x1="${X(x0).toFixed(1)}" y1="${Y(regProj(x0)).toFixed(1)}" x2="${X(x1).toFixed(1)}" y2="${Y(regProj(x1)).toFixed(1)}" stroke="${cInk}" stroke-width="2"/>`;
+    // historical points
+    regPts = [];
+    GBH.forEach(r => {
+      const [yr, mid, gb, act] = r;
+      const col = act >= 0 ? cDem : cGop;
+      const cx = X(gb), cy = Y(act);
+      s += mid
+        ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="7.5" fill="${col}"/>`
+        : `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="7.5" fill="#fff" stroke="${col}" stroke-width="2.2"/>`;
+      s += `<text x="${(cx + 12).toFixed(1)}" y="${(cy + 6).toFixed(1)}" font-family="${fSans}" font-size="18" fill="${cFaint}">'${String(yr).slice(2)}</text>`;
+      regPts.push({ cx, cy, yr, ballot: gb, actual: act, proj: null });
+    });
+    // 2026: raw ballot on the diagonal, projection on the line, connector
+    const gb = genericBallot, proj = regProj(gb);
+    s += `<line x1="${X(gb).toFixed(1)}" y1="${Y(gb).toFixed(1)}" x2="${X(gb).toFixed(1)}" y2="${Y(proj).toFixed(1)}" stroke="${cDem}" stroke-width="1.3" stroke-dasharray="3 2"/>`;
+    s += `<circle cx="${X(gb).toFixed(1)}" cy="${Y(gb).toFixed(1)}" r="5.5" fill="none" stroke="${cFaint}" stroke-width="1.8"/>`;
+    s += `<circle cx="${X(gb).toFixed(1)}" cy="${Y(proj).toFixed(1)}" r="9" fill="${cDem}" stroke="#fff" stroke-width="2.2"/>`;
+    s += `<text x="${(X(gb) + 14).toFixed(1)}" y="${(Y(proj) - 11).toFixed(1)}" font-family="${fSans}" font-size="22" font-weight="700" fill="${cDem}">2026</text>`;
+    regPts.push({ cx: X(gb), cy: Y(proj), yr: 2026, ballot: gb, actual: null, proj });
+    // axis titles
+    s += `<text x="${(mL + pw / 2).toFixed(1)}" y="${H - 12}" text-anchor="middle" font-family="${fSans}" font-size="20" font-weight="700" fill="${cFaint}">Final generic ballot</text>`;
+    s += `<text transform="translate(26,${(mT + ph / 2).toFixed(1)}) rotate(-90)" text-anchor="middle" font-family="${fSans}" font-size="20" font-weight="700" fill="${cFaint}">Actual House popular vote</text>`;
+    svg.innerHTML = s;
+    const rn = document.getElementById("reg-note");
+    if (rn) rn.innerHTML =
+      `<b>Raw ballot ${fmtMargin(gb)}</b> projects to <b style="color:${proj >= 0 ? cDem : cGop}">${fmtMargin(proj)}</b>. ` +
+      `Fit: actual = ${REG.a.toFixed(1)} + ${REG.b.toFixed(2)} × ballot, R² ${REG.r2.toFixed(2)}, 68% band ${fmtMargin(proj - REG.rse)} to ${fmtMargin(proj + REG.rse)}. ` +
+      `Filled dots are midterms, open dots presidential years (n = ${REG.n}). Hover any dot for its year. ` +
+      (regOn ? "Mean reversion is on: the map and simulator use the projected result." : "Mean reversion is off: the model uses the raw ballot.");
+  }
+  (function () {
+    const wraps = Array.from(document.querySelectorAll(".reg-toggle"));
+    if (!wraps.length) return;
+    function sync() {
+      wraps.forEach(w => w.querySelectorAll("button").forEach(b =>
+        b.setAttribute("aria-pressed", (b.dataset.reg === "on") === regOn ? "true" : "false")));
+    }
+    wraps.forEach(wrap => wrap.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-reg]"); if (!btn) return;
+      regOn = btn.dataset.reg === "on";
+      sync();
+      render(true); renderSim(); renderReg();
+    }));
+  })();
+  // hover tooltips on the regression dots
+  (function () {
+    const rsvg = document.getElementById("reg-svg"); if (!rsvg) return;
+    rsvg.addEventListener("mousemove", (e) => {
+      const r = rsvg.getBoundingClientRect();
+      const vx = (e.clientX - r.left) / r.width * 1000, vy = (e.clientY - r.top) / r.height * 560;
+      let best = null, bd = 400;
+      for (const p of regPts) { const dd = (p.cx - vx) ** 2 + (p.cy - vy) ** 2; if (dd < bd) { bd = dd; best = p; } }
+      if (!best) { tooltip.classList.remove("on"); return; }
+      tooltip.innerHTML = best.yr === 2026
+        ? `<div class="t-code">2026</div><div class="t-row"><span>Current ballot</span><b>${fmtMargin(best.ballot)}</b></div><div class="t-row"><span>Projected result</span><b>${fmtMargin(best.proj)}</b></div>`
+        : `<div class="t-code">${best.yr}</div><div class="t-row"><span>Final ballot</span><b>${fmtMargin(best.ballot)}</b></div><div class="t-row"><span>House result</span><b>${fmtMargin(best.actual)}</b></div><div class="t-row"><span>vs. ballot</span><b>${fmtMargin(best.actual - best.ballot)}</b></div>`;
+      tooltip.classList.add("on");
+      const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+      let x = e.clientX + pad, y = e.clientY + pad;
+      if (x + tw > window.innerWidth - 8) x = e.clientX - tw - pad;
+      if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+      tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
+    });
+    rsvg.addEventListener("mouseleave", () => tooltip.classList.remove("on"));
+  })();
 
   /* ---- meta-driven text (refreshes whenever data changes) -------------- */
   const frozenEl  = document.getElementById("frozen");
@@ -972,7 +1083,7 @@
   function renderSim() {
     if (!SIM) return;
     const cols = { cDem: C('--dem') || '#2e74d0', cGop: C('--gop') || '#e24b38', cInk: C('--ink') || '#0f1115', cFaint: C('--ink-faint') || '#9aa0a8', fSans: C('--sans') || 'sans-serif' };
-    const muEff = simMu - simBias;   // uniform polling-bias correction
+    const muEff = simMu - simBias + regAdj();   // polling-bias + mean-reversion
     const r = SIM.run(muEff, simMailDrag, simEcon);
     // pivotal-seat rankings at the current settings (safest Democratic first)
     const hEff = SIM.houseEff(muEff, simMailDrag, simEcon).sort((a, b) => b.m - a.m);

@@ -5,6 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>2026 House Forecast</title>
   <meta name="description" content="An interactive forecast of the 2026 U.S. House midterm elections, a district-level map." />
+
+  <!-- tab icon -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+  <!-- link preview (Open Graph / Twitter) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Mark G. Sheppard" />
+  <meta property="og:title" content="2026 House Forecast" />
+  <meta property="og:description" content="An interactive, district-level model of all 435 House seats, with a 20,000-run simulator and the Senate alongside." />
+  <meta property="og:url" content="https://markgsheppard.github.io/2026-House-Projections/" />
+  <meta property="og:image" content="https://markgsheppard.github.io/2026-House-Projections/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="2026 House Forecast: 236 Democrats, 199 Republicans." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="2026 House Forecast" />
+  <meta name="twitter:description" content="An interactive, district-level model of all 435 House seats." />
+  <meta name="twitter:image" content="https://markgsheppard.github.io/2026-House-Projections/assets/og-image.png" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -55,11 +76,19 @@
           <div class="ballot bias-card" id="bias-wrap">
             <div class="ballot-head">
               <label id="bias-lbl" class="has-tip" data-tip="bias">Polling bias</label>
-              <output id="bias-val">Off</output>
             </div>
             <div class="segmented bias-toggle" role="group" aria-labelledby="bias-lbl">
               <button type="button" data-bias="off" aria-pressed="true">Off</button>
               <button type="button" data-bias="on" aria-pressed="false">On</button>
+            </div>
+          </div>
+          <div class="ballot bias-card" id="reg-ctrl">
+            <div class="ballot-head">
+              <label id="reg-lbl" class="has-tip" data-tip="reg">Mean reversion</label>
+            </div>
+            <div class="segmented bias-toggle reg-toggle" role="group" aria-labelledby="reg-lbl">
+              <button type="button" data-reg="off" aria-pressed="true">Off</button>
+              <button type="button" data-reg="on" aria-pressed="false">On</button>
             </div>
           </div>
           <div class="poll-spark" id="poll-spark">
@@ -126,11 +155,6 @@
       </div>
     </section>
 
-    <section class="battle">
-      <h2>The battlegrounds</h2>
-      <p class="lede">With today's polarization and redistricting, the House comes down to a few dozen seats. These are the closest districts in the model, the ones that decide control.</p>
-      <div class="bg-grid" id="battlegrounds"></div>
-    </section>
 
     <section class="sim">
       <h2>Simulated outcomes</h2>
@@ -149,10 +173,17 @@
           <input type="range" id="sim-econ" min="0" max="100" step="1" value="0" aria-label="Fundamentals, state misery penalty intensity" />
         </div>
         <div class="ballot bias-card">
-          <div class="ballot-head"><label id="sim-bias-lbl" class="has-tip" data-tip="bias">Polling bias</label><output id="sim-bias-val">Off</output></div>
+          <div class="ballot-head"><label id="sim-bias-lbl" class="has-tip" data-tip="bias">Polling bias</label></div>
           <div class="segmented bias-toggle" id="sim-bias" role="group" aria-labelledby="sim-bias-lbl">
             <button type="button" data-bias="off" aria-pressed="true">Off</button>
             <button type="button" data-bias="on" aria-pressed="false">On</button>
+          </div>
+        </div>
+        <div class="ballot bias-card">
+          <div class="ballot-head"><label id="sim-reg-lbl" class="has-tip" data-tip="reg">Mean reversion</label></div>
+          <div class="segmented bias-toggle reg-toggle" id="sim-reg" role="group" aria-labelledby="sim-reg-lbl">
+            <button type="button" data-reg="off" aria-pressed="true">Off</button>
+            <button type="button" data-reg="on" aria-pressed="false">On</button>
           </div>
         </div>
         <button type="button" id="sim-resim" class="resim-btn">Resimulate</button>
@@ -168,6 +199,36 @@
         </div>
       </div>
     </section>
+
+    <div class="duo">
+      <section class="battle">
+        <h2>The battlegrounds</h2>
+        <p class="lede">Each tile is one of the closest seats in the model: the party leading today, the current margin, and the share of simulations in which that leader keeps the seat. The bar underneath shows how lopsided the odds are, red for Republican and blue for Democratic. These are the races that decide the chamber, so even a small shift in the national environment moves several of them at once.</p>
+        <div class="bg-grid" id="battlegrounds"></div>
+      </section>
+
+      <section class="regress">
+        <h2>Ballot vs. result</h2>
+        <p class="lede">The generic ballot runs a little hot. Across the last ten elections, the party ahead on the final ballot average usually won the House popular vote by a bit less than the polls said. Each dot is one cycle; the line is the fit; the dashed diagonal is where the ballot would equal the result exactly. Turn on mean reversion to project 2026 the same way and push it through the whole model.</p>
+        <div class="reg-wrap">
+          <svg id="reg-svg" viewBox="0 0 1000 560" role="img" aria-label="Final generic ballot versus actual House popular vote, 2006 to 2024, with the regression line and the 2026 projection"></svg>
+        </div>
+      </section>
+
+      <details class="duo-foot">
+        <summary>Notes &amp; method</summary>
+        <div class="duo-foot-grid">
+          <div class="df-col">
+            <h4>The battlegrounds</h4>
+            <p>With today's polarization and redistricting, the House comes down to a few dozen seats. These are the closest districts in the model, the ones that decide control.</p>
+          </div>
+          <div class="df-col">
+            <h4>Ballot vs. result</h4>
+            <p class="reg-note" id="reg-note"></p>
+          </div>
+        </div>
+      </details>
+    </div>
 
   </main>
 
