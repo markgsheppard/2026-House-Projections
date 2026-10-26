@@ -85,3 +85,11 @@ so they show the area's trend rather than exact results on today's boundaries. S
 - Generic ballot D +8.9 (Silver Bulletin, Oct. 8); 79 generic-ballot polls, July 9 – Oct. 5 (RealClearPolling).
 - Senate win probabilities and ratings: Decision Desk HQ / The Hill forecast, Oct. 9.
 - Fundamentals: BLS state unemployment, Aug. 2026, plus CPI-U 12-month inflation, Aug. 2026 (3.4%).
+
+
+## Model fundamentals (added Oct. 2026)
+- **Fundraising** (House only): competitive districts carry a capped adjustment from Q3 FEC receipts, 0.75 pts per doubling of the candidates' receipts ratio, capped at 1.5, halved when the money edge is the incumbent's. See the **Fundraising** sheet. Senate odds come from models that already include fundraising, so the Senate shows the money but is not adjusted.
+- **Elasticity**: each district and state moves by its own elasticity rather than a uniform swing, estimated from 2008-2024 presidential swings (slope of seat swing on national swing with an intercept for drift, shrunk toward 1, capped 0.7-1.4, normalized to mean 1).
+- **Correlated error**: the simulator's race-level noise is split into a shared Census-region component (2.0 pts House, 2.5 Senate) and an idiosyncratic component, and the national error is scaled by elasticity, so polling misses cluster the way they do in real life.
+- **Poll weighting**: the polling average weights each poll by its 538 pollster grade (2023) times recency, and shifts registered-voter and adult samples to a likely-voter basis (+0.5 / +1.0 Dem margin, the size of Silver Bulletin's current LV screen). See the **Pollsters** sheet; a `Pop` column in **Polls** overrides a poll's population.
+- **Calibration log**: every pipeline run appends a row to `forecast-log.csv` (date, ballot, House and Senate tallies, battleground margins, Senate probabilities) so the forecast can be scored after the election.

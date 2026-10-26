@@ -158,7 +158,7 @@
 
     <section class="sim">
       <h2>Simulated outcomes</h2>
-      <p class="lede">Twenty thousand simulated elections. Each run draws one national environment (the expected margin below, &plusmn;6 points of uncertainty) and then decides every seat individually: all 435 districts on their real margins and the 35 Senate races up in 2026, so the House and Senate move together. Each little box is a share of the simulations; the line marks the seats needed for control.</p>
+      <p class="lede">Twenty thousand simulated elections. Each run draws one national environment (the expected margin below, &plusmn;6 points of uncertainty), scaled by each seat&rsquo;s elasticity, plus a shared regional error for each Census region, and then decides every seat individually: all 435 districts on their real margins and the 35 Senate races up in 2026, so the House and Senate move together. Each little box is a share of the simulations; the line marks the seats needed for control.</p>
       <div class="sim-controls">
         <div class="ballot">
           <div class="ballot-head"><label for="sim-mu" class="has-tip" data-tip="mu">Expected margin</label><output id="sim-mu-val">D +7.5</output></div>
@@ -220,7 +220,7 @@
         <div class="duo-foot-grid">
           <div class="df-col">
             <h4>The battlegrounds</h4>
-            <p>With today's polarization and redistricting, the House comes down to a few dozen seats. These are the closest districts in the model, the ones that decide control.</p>
+            <p>With today's polarization and redistricting, the House comes down to a few dozen seats. These are the closest districts in the model, the ones that decide control. In the competitive seats, each district's margin also carries a fundraising fundamental from the Q3 FEC filings: 0.75 points per doubling of the candidates' receipts ratio, capped at 1.5, and halved when the money edge belongs to the incumbent. Senate odds come from models that already weigh fundraising, so the Senate shows the money but does not adjust for it. The national swing is not uniform: each seat moves by its elasticity, estimated from how its presidential margin tracked the national margin from 2008 to 2024 (mean 1; shrunk toward 1 and capped at 0.7 to 1.4).</p>
           </div>
           <div class="df-col">
             <h4>Ballot vs. result</h4>

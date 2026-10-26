@@ -20,9 +20,16 @@
   let genericBallot = (typeof meta.genericBallot === "number") ? meta.genericBallot : 7.5;
   // Poll series declared early so effective()/senMargin() can reach it during init
   const DAY = 864e5;
+  // pollster quality weights + population defaults (538 grades) and the likely-voter shift, from data.js
+  const PSTR = meta.pollsters || {};
+  const LVADJ = meta.lvAdj || { LV: 0, RV: 0, A: 0 };
   const POLLS = (DATA.polls || []).map(p => {
     const s0 = Date.parse(p[1]), e0 = Date.parse(p[2]);
-    return { who: p[0], t: (s0 + e0) / 2, end: e0, d: +p[3], r: +p[4] };
+    const info = PSTR[p[0]] || {};
+    const pop = (p[5] && String(p[5]).toUpperCase()) || info.pop || "RV";     // per-poll Pop column overrides the default
+    const adj = LVADJ[pop] || 0;                                            // Dem-margin shift to a likely-voter basis
+    return { who: p[0], t: (s0 + e0) / 2, end: e0, d: +p[3], r: +p[4], q: (typeof info.w === "number") ? info.w : 0.5, pop, adj,
+             da: +p[3] + adj / 2, ra: +p[4] - adj / 2 };                     // adjusted shares (totals preserved)
   }).filter(p => isFinite(p.t) && isFinite(p.d) && isFinite(p.r)).sort((a, b) => a.t - b.t);
   const MAIL = mail || {};
   const ECON = DATA.econ || {};                 // { ST: { m: misery index, g: governor party } }
@@ -77,9 +84,20 @@
 
   // effective per-district numbers: generic ballot + Mail-In Access + Fundamentals,
   // less a uniform historical polling-bias correction.
+  // fundraising fundamental (House only): capped log-ratio of Q3 FEC receipts, baked into data.js
+  function fundAdj(d) { return (d.fund && typeof d.fund.adj === "number") ? d.fund.adj : 0; }
+  function fmtMoney(v) { return v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + Math.round(v / 1e3) + "K"; }
+  function fundRow(fund, adj) {
+    if (!fund) return "";
+    const tail = (typeof adj === "number") ? ` (${adj >= 0 ? "D" : "R"} ${Math.abs(adj).toFixed(1)} pt)` : "";
+    return `<div class="t-row"><span>Fundraising</span><b>${fmtMoney(fund.d)} vs ${fmtMoney(fund.r)}${tail}</b></div>`;
+  }
+  // elasticity: how much a seat moves per point of national swing (mean 1; from 2008-2024 presidential swings)
+  function elastOf(x) { return (x && typeof x.elast === "number") ? x.elast : 1; }
+  // the national environment shift applied to every seat (ballot vs anchor, polling bias, mean reversion)
+  function natShift(anchor) { return (genericBallot - anchor) - biasPts + regAdj(); }
   function effective(d) {
-    const bias = -biasPts;
-    const margin = d.margin + (genericBallot - ANCHOR) + mailShock(d.state) + econShock(d.state) + bias + regAdj();
+    const margin = d.margin + elastOf(d) * natShift(ANCHOR) + mailShock(d.state) + econShock(d.state) + fundAdj(d);
     return {
       margin,
       demProb: Math.max(0.002, Math.min(0.998, logistic(margin, SIGMA))),
@@ -171,8 +189,7 @@
   function senMargin(st) {
     const rc = senByState[st]; if (!rc) return null;
     const base = SEN_KSD * probit(rc.p);              // race margin at the reference environment
-    const bias = -biasPts;
-    return base + (genericBallot - SEN_MU0) + mailShock(st) + econShock(st) + bias + regAdj();
+    return base + elastOf(rc) * natShift(SEN_MU0) + mailShock(st) + econShock(st);
   }
   function senProb(m) { return Math.max(0.002, Math.min(0.998, normCdf(m / SEN_KSD))); }
   const SEN_NOTUP = meta.senateNotUp || {};        // { ST: 'D' | 'R' | 'split' } for the 15 states not on the ballot
@@ -224,6 +241,8 @@
        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
        <div class="t-row"><span style="color:var(--gop)">GOP hold</span><b>${rp}%</b></div>
        <div class="t-row"><span style="color:var(--dem)">DEM hold</span><b>${dp}%</b></div>
+       ${fundRow(f.fund, f.fund ? f.fund.adj : undefined)}
+       <div class="t-row"><span>Elasticity</span><b>${elastOf(f).toFixed(2)}&times;</b></div>
        ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}
        ${histSpark((HIST.district || {})[f.code], e.margin)}`;
     tooltip.classList.add("on");
@@ -271,6 +290,8 @@
         <div class="t-row"><span style="color:var(--gop)">GOP win</span><b>${rp}%</b></div>
         <div class="t-row"><span style="color:var(--dem)">DEM win</span><b>${dp}%</b></div>
         <div class="t-row"><span>Held by</span><b>${rc.held === "D" ? "Democrat" : "Republican"}</b></div>
+        ${fundRow(rc.fund)}
+        <div class="t-row"><span>Elasticity</span><b>${elastOf(rc).toFixed(2)}&times;</b></div>
         ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
         ${histSpark((HIST.state || {})[st], m)}`;
     }
@@ -336,11 +357,11 @@
     const bw = 7 * DAY, t0 = POLLS[0].t, t1 = POLLS[POLLS.length - 1].t, out = [];
     for (let t = t0; t <= t1 + 1; t += DAY) {
       let w = 0, sd = 0, sr = 0;
-      const ws = POLLS.map(p => Math.exp(-0.5 * Math.pow((t - p.t) / bw, 2)));
-      POLLS.forEach((p, i) => { w += ws[i]; sd += ws[i] * p.d; sr += ws[i] * p.r; });
+      const ws = POLLS.map(p => p.q * Math.exp(-0.5 * Math.pow((t - p.t) / bw, 2)));   // quality x recency
+      POLLS.forEach((p, i) => { w += ws[i]; sd += ws[i] * p.da; sr += ws[i] * p.ra; });
       const md = sd / w, mr = sr / w;
       let vd = 0, vr = 0;
-      POLLS.forEach((p, i) => { vd += ws[i] * (p.d - md) ** 2; vr += ws[i] * (p.r - mr) ** 2; });
+      POLLS.forEach((p, i) => { vd += ws[i] * (p.da - md) ** 2; vr += ws[i] * (p.ra - mr) ** 2; });
       out.push({ t, d: md, r: mr, sdd: Math.sqrt(vd / w), sdr: Math.sqrt(vr / w) });
     }
     return out;
@@ -482,7 +503,7 @@
     mail: ["Mail-in", "Mail-In Access: models restrictions on mail voting as a Democratic turnout drag. The effect is largest in moderate-mail swing states (state 2024 mail share × how Democratic mail voters are); the readout is the national cost in points."],
     econ: ["Fundamentals", "State economic stress. Where a state’s misery index (unemployment + inflation) is above " + ECON_THRESH + ", this shifts races up to " + ECON_MAX + " points against the party holding the governorship."],
     bias: ["Polling bias", "Historical polling bias. On shifts every race " + POLLBIAS + " points toward Republicans, the average recent polling error in Democrats’ favor. Off takes the polls at face value."],
-    polls: ["Polls", "Generic-ballot polls, smoothed with a two-week kernel. Lines are the Democratic (blue) and Republican (red) averages; the light bands are ±1 standard deviation. Hover the chart for any date."],
+    polls: ["Polls", "Generic-ballot polls, weighted by pollster quality (538 grades) and recency, with registered-voter and adult samples shifted to a likely-voter basis. Lines are the Democratic (blue) and Republican (red) averages; the light bands are ±1 standard deviation. Hover the chart for any date."],
     und: ["Undecided", "Share choosing neither party in the generic-ballot average (100 minus D and R), lined up by days before Election Day for 2026 and the last four midterms. The dashed line marks today."],
     reg: ["Mean reversion", "Projects the generic ballot onto the historical ballot-vs-result line (actual = " + REG.a.toFixed(1) + " + " + REG.b.toFixed(2) + " × ballot, R² " + REG.r2.toFixed(2) + "). The leading party has usually won by a bit less than the final ballot. On applies the projection to the whole model. It overlaps with Polling bias and Undecided break, so use one lens, not all three."],
     mu: ["Expected margin", "The national Democratic margin each simulation is centered on, before ±6 points of uncertainty."]
@@ -975,10 +996,22 @@
 
   let SIM = null;
   function buildSim(seed) {
-    const N = 20000, TAU_H = 3.5, TAU_S = 6.0;
-    const KSD = Math.sqrt(SIG * SIG + TAU_S * TAU_S);      // combined national + race sd
+    const N = 20000;
+    // race-level error is split into a REGIONAL piece (shared by every seat in a Census region) and an
+    // idiosyncratic piece; the totals (3.5 House, 6.0 Senate) match the old independent-noise model.
+    const TAU_H_TOT = 3.5, TAU_S_TOT = 6.0, TAU_REG_H = 2.0, TAU_REG_S = 2.5;
+    const TAU_H = Math.sqrt(TAU_H_TOT * TAU_H_TOT - TAU_REG_H * TAU_REG_H);
+    const TAU_S = Math.sqrt(TAU_S_TOT * TAU_S_TOT - TAU_REG_S * TAU_REG_S);
+    const KSD = Math.sqrt(SIG * SIG + TAU_S_TOT * TAU_S_TOT);   // combined national + race sd
+    const REGION = { CT:0,ME:0,MA:0,NH:0,RI:0,VT:0,NJ:0,NY:0,PA:0,
+                     IL:1,IN:1,MI:1,OH:1,WI:1,IA:1,KS:1,MN:1,MO:1,NE:1,ND:1,SD:1,
+                     DE:2,FL:2,GA:2,MD:2,NC:2,SC:2,VA:2,DC:2,WV:2,AL:2,KY:2,MS:2,TN:2,AR:2,LA:2,OK:2,TX:2,
+                     AZ:3,CO:3,ID:3,MT:3,NV:3,NM:3,UT:3,WY:3,AK:3,CA:3,HI:3,OR:3,WA:3 };
+    const NR = 4, regOf = st => (st in REGION ? REGION[st] : 0);
     const flist = Object.values(forecast);
-    const bases = Float64Array.from(flist.map(f => f.margin));
+    const bases = Float64Array.from(flist.map(f => f.margin + fundAdj(f)));   // fundraising is a fixed fundamental
+    const elH = Float64Array.from(flist.map(f => elastOf(f)));
+    const regH = Int8Array.from(flist.map(f => regOf(f.state)));
     const ND = bases.length;
     // per-district mail-in shock per point of drag (state mail share x Dem-skew), and codes
     const mUnitH = Float64Array.from(flist.map(f => { const mm = MAIL[f.state]; return mm && MAILK > 0 ? -(mm.share * mm.skew) / MAILK : 0; }));
@@ -989,31 +1022,36 @@
     const M = Float64Array.from(SENRACES.map(rc => KSD * probit(rc.p)));  // race margin at MU0
     const mUnitS = Float64Array.from(SENRACES.map(rc => { const mm = MAIL[rc.st]; return mm && MAILK > 0 ? -(mm.share * mm.skew) / MAILK : 0; }));
     const eUnitS = Float64Array.from(SENRACES.map(rc => eUnit(rc.st)));
+    const elS = Float64Array.from(SENRACES.map(rc => elastOf(rc)));
+    const regS = Int8Array.from(SENRACES.map(rc => regOf(rc.st)));
     const NS = M.length;
     let s = (seed >>> 0) || 1;
     const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
     const gs = () => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
-    const Z = new Float64Array(N), EH = new Float32Array(N * ND), ES = new Float32Array(N * NS);
+    const Z = new Float64Array(N), ZR = new Float32Array(N * NR), EH = new Float32Array(N * ND), ES = new Float32Array(N * NS);
     for (let i = 0; i < N; i++) {
       Z[i] = gs();
+      const or = i * NR; for (let g = 0; g < NR; g++) ZR[or + g] = gs();   // one regional draw per region per run
       const oh = i * ND; for (let d = 0; d < ND; d++) EH[oh + d] = TAU_H * gs();
       const os = i * NS; for (let r = 0; r < NS; r++) ES[os + r] = TAU_S * gs();
     }
     return {
       N, codesH, senRaces: SENRACES, notUpD: NOTUP_D,
       // effective margins at (mu, mail, econ) with no idiosyncratic noise (for pivotal ranking)
-      houseEff(mu, mail, econ) { const ef = (econ || 0) / 100; return flist.map((f, d) => ({ code: f.code, m: bases[d] + mu + mail * mUnitH[d] + ef * eUnitH[d] })); },
-      senEff(mu, mail, econ) { const dmu = mu - MU0, ef = (econ || 0) / 100; return SENRACES.map((rc, r) => ({ st: rc.st, m: M[r] + dmu + mail * mUnitS[r] + ef * eUnitS[r] })); },
+      houseEff(mu, mail, econ) { const ef = (econ || 0) / 100; return flist.map((f, d) => ({ code: f.code, m: bases[d] + elH[d] * mu + mail * mUnitH[d] + ef * eUnitH[d] })); },
+      senEff(mu, mail, econ) { const dmu = mu - MU0, ef = (econ || 0) / 100; return SENRACES.map((rc, r) => ({ st: rc.st, m: M[r] + elS[r] * dmu + mail * mUnitS[r] + ef * eUnitS[r] })); },
       run(mu, mail, econ) {
         mail = mail || 0; const ef = (econ || 0) / 100;
         const hc = new Int32Array(436), sc = new Int32Array(101); let hM = 0, sM = 0;
         const dmu = mu - MU0;
         for (let i = 0; i < N; i++) {
-          const m = mu + SIG * Z[i];                    // national environment this run
+          const m = mu + SIG * Z[i];                    // national environment this run (scaled per seat by elasticity)
+          const dm = dmu + SIG * Z[i];
+          const or = i * NR;
           const oh = i * ND; let h = 0;
-          for (let d = 0; d < ND; d++) if (bases[d] + m + mail * mUnitH[d] + ef * eUnitH[d] + EH[oh + d] > 0) h++;
+          for (let d = 0; d < ND; d++) if (bases[d] + elH[d] * m + TAU_REG_H * ZR[or + regH[d]] + mail * mUnitH[d] + ef * eUnitH[d] + EH[oh + d] > 0) h++;
           const os = i * NS; let se = NOTUP_D;
-          for (let r = 0; r < NS; r++) if (M[r] + dmu + SIG * Z[i] + mail * mUnitS[r] + ef * eUnitS[r] + ES[os + r] > 0) se++;
+          for (let r = 0; r < NS; r++) if (M[r] + elS[r] * dm + TAU_REG_S * ZR[or + regS[r]] + mail * mUnitS[r] + ef * eUnitS[r] + ES[os + r] > 0) se++;
           hc[h]++; sc[se]++;
           if (h >= 218) hM++; if (se >= SEN_WIN) sM++;
         }

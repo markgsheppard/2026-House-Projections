@@ -83,7 +83,10 @@ def read_polls(ws):
         except (TypeError, ValueError):
             continue
         if s0 and e0:
-            polls.append([str(row[0]), s0, e0, d, r])
+            rec = [str(row[0]), s0, e0, d, r]
+            pop = str(row[5]).strip().upper() if len(row) > 5 and row[5] else ""
+            if pop in ("LV", "RV", "A"): rec.append(pop)
+            polls.append(rec)
     return sorted(polls, key=lambda p: p[2])
 
 def main():
@@ -106,6 +109,13 @@ def main():
             fc[did]["margin"] = m
         n_over = len(ov)
 
+    if "Pollsters" in wb.sheetnames:
+        pst = {}
+        for row in wb["Pollsters"].iter_rows(values_only=True):
+            if row and row[0] and len(row) >= 4 and isinstance(row[2], (int, float)):
+                pst[str(row[0]).strip()] = {"grade": str(row[1]), "w": float(row[2]), "pop": str(row[3]).strip().upper()}
+        if pst: meta["pollsters"] = pst
+
     if "Polls" in wb.sheetnames:
         polls = read_polls(wb["Polls"])
         if len(polls) >= 3:
@@ -114,13 +124,39 @@ def main():
     # recompute baseline seat tally at the chosen generic ballot (for meta tidiness)
     anchor, gb = meta.get("anchor", 0), meta.get("genericBallot", 6.6)
     swing = gb - anchor
-    margins = sorted((f["margin"] + swing for f in fc.values()), reverse=True)
+    margins = sorted((f["margin"] + (f.get("elast", 1) or 1) * swing + (f.get("fund", {}).get("adj", 0) or 0) for f in fc.values()), reverse=True)
     dem = sum(1 for m in margins if m >= 0)
     meta["demSeats"], meta["gopSeats"] = dem, len(margins) - dem
     meta["leader"] = "D" if dem >= meta["gopSeats"] else "R"
 
     # write data.js
     (HERE / "data.js").write_text("window.HOUSE_DATA = " + json.dumps(data, separators=(",", ":")) + ";\n")
+
+    # calibration log: one row per run, so the forecast can be scored after the election
+    import csv
+    def eff_margin(f):
+        e = f.get("elast", 1) or 1
+        return f["margin"] + e * swing + (f.get("fund", {}).get("adj", 0) or 0)
+    comp = sorted(fc.values(), key=lambda f: abs(eff_margin(f)))[:40]
+    sen = meta.get("senate", [])
+    sen_up_d = sum(1 for rc in sen if rc.get("p", 0) >= 0.5)
+    notup_d = meta.get("senateNotUpD", 34)
+    row = {
+        "run_date": datetime.date.today().isoformat(),
+        "data_updated": meta["dataUpdated"],
+        "generic_ballot": gb,
+        "house_dem": dem, "house_gop": meta["gopSeats"],
+        "senate_dem": notup_d + sen_up_d, "senate_gop": 100 - notup_d - sen_up_d,
+        "n_polls": len(data.get("polls", [])),
+        "house_battlegrounds": json.dumps({f["code"]: round(eff_margin(f), 2) for f in comp}, separators=(",", ":")),
+        "senate_probs": json.dumps({rc["st"]: rc.get("p") for rc in sen}, separators=(",", ":")),
+    }
+    log = HERE / "forecast-log.csv"
+    new_file = not log.exists()
+    with log.open("a", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(row.keys()))
+        if new_file: w.writeheader()
+        w.writerow(row)
 
     # rebuild the standalone, shareable HTML
     html = (HERE / "index.html").read_text()
