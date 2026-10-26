@@ -938,7 +938,7 @@ window.HOUSE_DATA = {"districts":{"type":"Topology","bbox":[-179.146711,18.91036
   function fundRow(fund, adj) {
     if (!fund) return "";
     const tail = (typeof adj === "number") ? ` (${adj >= 0 ? "D" : "R"} ${Math.abs(adj).toFixed(1)} pt)` : "";
-    return `<div class="t-row"><span>Fundraising</span><b>${fmtMoney(fund.d)} vs ${fmtMoney(fund.r)}${tail}</b></div>`;
+    return `<div class="t-row"><span>Fundraising</span><b><span style="color:var(--dem)">${fmtMoney(fund.d)}</span> vs <span style="color:var(--gop)">${fmtMoney(fund.r)}</span>${tail}</b></div>`;
   }
   // elasticity: how much a seat moves per point of national swing (mean 1; from 2008-2024 presidential swings)
   function elastOf(x) { return (x && typeof x.elast === "number") ? x.elast : 1; }
