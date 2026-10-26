@@ -89,7 +89,7 @@
   function fmtMoney(v) { return v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + Math.round(v / 1e3) + "K"; }
   function fundRow(fund, adj) {
     if (!fund) return "";
-    const tail = (typeof adj === "number") ? ` (${adj >= 0 ? "D" : "R"} ${Math.abs(adj).toFixed(1)} pt)` : "";
+    const tail = (typeof adj === "number") ? ` (${adj >= 0 ? "D" : "R"} ${Math.abs(adj).toFixed(1)})` : "";
     return `<div class="t-row"><span>Fundraising</span><b><span style="color:var(--dem)">${fmtMoney(fund.d)}</span> vs <span style="color:var(--gop)">${fmtMoney(fund.r)}</span>${tail}</b></div>`;
   }
   // elasticity: how much a seat moves per point of national swing (mean 1; from 2008-2024 presidential swings)
@@ -243,6 +243,7 @@
        ${fundRow(f.fund, f.fund ? f.fund.adj : undefined)}
        <div class="t-row"><span>Elasticity</span><b>${elastOf(f).toFixed(2)}&times;</b></div>
        ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}
+       ${raceTrendSpark(e.margin, elastOf(f))}
        ${histSpark((HIST.district || {})[f.code], e.margin)}`;
   }
   function showTip(evt, d) {
@@ -273,6 +274,7 @@
         ${fundRow(rc.fund)}
         <div class="t-row"><span>Elasticity</span><b>${elastOf(rc).toFixed(2)}&times;</b></div>
         ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
+        ${raceTrendSpark(m, elastOf(rc))}
         ${histSpark((HIST.state || {})[st], m)}`;
   }
   function moveTip(evt) {
@@ -382,10 +384,38 @@
     return rec.reduce((a, p) => a + (100 - p.d - p.r), 0) / rec.length;
   }
   let pollSpark = null;
+  let POLL_SMOOTH = [];
+  // race trend: the seat's implied two-party shares over the polling window, moving with the
+  // weighted generic-ballot average through the seat's elasticity (same look as the top sparkline)
+  function raceTrendSpark(marginNow, e) {
+    const sm = POLL_SMOOTH; if (!sm || sm.length < 3) return "";
+    const pts = sm.map(p => { const m = marginNow + e * ((p.d - p.r) - genericBallot); return { t: p.t, d: 50 + m / 2, r: 50 - m / 2 }; });
+    const W = 176, H = 42, pl = 3, pr = 5, pt = 5, pb = 5;
+    const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+    let lo = Infinity, hi = -Infinity; for (const q of pts) { lo = Math.min(lo, q.d, q.r); hi = Math.max(hi, q.d, q.r); }
+    const padY = Math.max(1.5, (hi - lo) * 0.15); lo -= padY; hi += padY;
+    const x = t => pl + (t - t0) * (W - pl - pr) / Math.max(1, t1 - t0);
+    const y = v => pt + (hi - v) * (H - pt - pb) / (hi - lo);
+    const line = k => pts.map((q, i) => (i ? "L" : "M") + x(q.t).toFixed(1) + "," + y(q[k]).toFixed(1)).join("");
+    const last = pts[pts.length - 1];
+    const fmtD = t => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    const y50 = (lo < 50 && hi > 50) ? `<line x1="0" x2="${W}" y1="${y(50).toFixed(1)}" y2="${y(50).toFixed(1)}" stroke="#c8ccd1" stroke-width="1" stroke-dasharray="2 2"/>` : "";
+    return `<div class="t-spark">
+      <div class="t-spark-h"><span>Race trend, from the polling average</span><span>${fmtMargin(last.d - last.r)}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+        ${y50}
+        <path d="${line("d")}" fill="none" stroke="var(--dem)" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="${line("r")}" fill="none" stroke="var(--gop)" stroke-width="1.6" stroke-linejoin="round"/>
+        <circle cx="${x(last.t).toFixed(1)}" cy="${y(last.d).toFixed(1)}" r="2" fill="var(--dem)"/>
+        <circle cx="${x(last.t).toFixed(1)}" cy="${y(last.r).toFixed(1)}" r="2" fill="var(--gop)"/>
+      </svg>
+      <div class="t-spark-x"><span>${fmtD(t0)}</span><span>${fmtD(t1)}</span></div>
+    </div>`;
+  }
   function renderPollSpark() {
     const svgEl = document.getElementById("poll-svg"), wrap = document.getElementById("poll-spark");
     if (!svgEl || !wrap) return;
-    const sm = smoothPolls();
+    const sm = smoothPolls(); POLL_SMOOTH = sm;
     if (!sm.length) { wrap.style.display = "none"; return; }
     const W = 180, H = 44, pad = 2;
     let lo = Infinity, hi = -Infinity;
