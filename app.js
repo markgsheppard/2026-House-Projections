@@ -575,13 +575,13 @@
       tipCode = senTipState;
       rows = (meta.senate || []).map(rc => {
         const m = senMargin(rc.st);
-        return { code: rc.st, margin: m, demProb: senProb(m) };
-      }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 16);
+        return { code: rc.st, margin: m, demProb: senProb(m), fund: rc.fund };
+      }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 9);
     } else {
       tipCode = currentTip;
       rows = Object.keys(forecast).map(id => {
         const f = forecast[id]; const e = effective(f);
-        return { code: f.code, margin: e.margin, demProb: e.demProb };
+        return { code: f.code, margin: e.margin, demProb: e.demProb, fund: f.fund };
       }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 9);
     }
     bgWrap.innerHTML = rows.map(r => {
@@ -593,6 +593,7 @@
         <div class="bg-code">${r.code}</div>
         <div class="bg-margin ${partyCls}">${fmtMargin(r.margin)}</div>
         <div class="bg-prob">${leadProb}% to hold</div>
+        ${r.fund ? `<div class="bg-fund"><span style="color:var(--dem)">${fmtMoney(r.fund.d)}</span> vs <span style="color:var(--gop)">${fmtMoney(r.fund.r)}</span></div>` : ``}
         <div class="bg-meter"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
       </div>`;
     }).join("");
