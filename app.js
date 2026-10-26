@@ -229,22 +229,26 @@
     return `${party}+${v < 0.05 ? "0.0" : v.toFixed(1)}`;
   }
 
-  function showTip(evt, d) {
-    const f = forecast[d.id];
+  function districtTipHtml(f) {
     const e = effective(f);
     const dp = Math.round(e.demProb * 100);
     const rp = 100 - dp;
     const isTip = f.code === currentTip;
-    tooltip.innerHTML =
-      `<div class="t-code">${f.code}</div>
+    return `<div class="t-code">${f.code}</div>
+       <div class="t-row"><span>Polling (generic ballot)</span><b>${fmtGB(genericBallot)}</b></div>
        <div class="t-row"><span>Projected margin</span><b>${fmtMargin(e.margin)}</b></div>
        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
-       <div class="t-row"><span style="color:var(--gop)">GOP hold</span><b>${rp}%</b></div>
-       <div class="t-row"><span style="color:var(--dem)">DEM hold</span><b>${dp}%</b></div>
+       <div class="t-row"><span style="color:var(--dem)">Win probability, DEM</span><b>${dp}%</b></div>
+       <div class="t-row"><span style="color:var(--gop)">Win probability, GOP</span><b>${rp}%</b></div>
        ${fundRow(f.fund, f.fund ? f.fund.adj : undefined)}
        <div class="t-row"><span>Elasticity</span><b>${elastOf(f).toFixed(2)}&times;</b></div>
        ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}
        ${histSpark((HIST.district || {})[f.code], e.margin)}`;
+  }
+  function showTip(evt, d) {
+    const f = forecast[d.id];
+    const e = effective(f);
+    tooltip.innerHTML = districtTipHtml(f);
     tooltip.classList.add("on");
     tooltip.setAttribute("aria-hidden", "false");
     moveTip(evt);
@@ -255,6 +259,21 @@
       .attr("d", path(d))
       .attr("fill", colorScale(e.margin))
       .attr("class", "district hot");
+  }
+  function senateTipHtml(st, rc) {
+    const m = senMargin(st), dp = Math.round(senProb(m) * 100), rp = 100 - dp;
+    const isTip = st === senTipState;
+    return `<div class="t-code">${st}</div>
+        <div class="t-row"><span>Polling (generic ballot)</span><b>${fmtGB(genericBallot)}</b></div>
+        <div class="t-row"><span>Projected margin</span><b>${fmtMargin(m)}</b></div>
+        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
+        <div class="t-row"><span style="color:var(--dem)">Win probability, DEM</span><b>${dp}%</b></div>
+        <div class="t-row"><span style="color:var(--gop)">Win probability, GOP</span><b>${rp}%</b></div>
+        <div class="t-row"><span>Held by</span><b>${rc.held === "D" ? "Democrat" : "Republican"}</b></div>
+        ${fundRow(rc.fund)}
+        <div class="t-row"><span>Elasticity</span><b>${elastOf(rc).toFixed(2)}&times;</b></div>
+        ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
+        ${histSpark((HIST.state || {})[st], m)}`;
   }
   function moveTip(evt) {
     const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -282,18 +301,7 @@
         <div class="t-row"><span>Held by</span><b>${held}</b></div>
         ${histSpark((HIST.state || {})[st])}`;
     } else {
-      const m = senMargin(st), dp = Math.round(senProb(m) * 100), rp = 100 - dp;
-      const isTip = st === senTipState;
-      tooltip.innerHTML = `<div class="t-code">${st}</div>
-        <div class="t-row"><span>Projected margin</span><b>${fmtMargin(m)}</b></div>
-        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
-        <div class="t-row"><span style="color:var(--gop)">GOP win</span><b>${rp}%</b></div>
-        <div class="t-row"><span style="color:var(--dem)">DEM win</span><b>${dp}%</b></div>
-        <div class="t-row"><span>Held by</span><b>${rc.held === "D" ? "Democrat" : "Republican"}</b></div>
-        ${fundRow(rc.fund)}
-        <div class="t-row"><span>Elasticity</span><b>${elastOf(rc).toFixed(2)}&times;</b></div>
-        ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
-        ${histSpark((HIST.state || {})[st], m)}`;
+      tooltip.innerHTML = senateTipHtml(st, rc);
     }
     tooltip.classList.add("on");
     tooltip.setAttribute("aria-hidden", "false");
@@ -584,12 +592,21 @@
         return { code: f.code, margin: e.margin, demProb: e.demProb, fund: f.fund };
       }).sort((a, b) => Math.abs(a.margin) - Math.abs(b.margin)).slice(0, 9);
     }
+    bgWrap.onmouseover = (ev) => {
+      const cell = ev.target.closest(".bg-cell"); if (!cell) return;
+      const code = cell.dataset.code;
+      if (chamber === "senate") { const rc = senByState[code]; if (rc) tooltip.innerHTML = senateTipHtml(code, rc); }
+      else { const id = Object.keys(forecast).find(k => forecast[k].code === code); if (id) tooltip.innerHTML = districtTipHtml(forecast[id]); }
+      tooltip.classList.add("on"); tooltip.setAttribute("aria-hidden", "false"); moveTip(ev);
+    };
+    bgWrap.onmousemove = (ev) => { if (ev.target.closest(".bg-cell")) moveTip(ev); };
+    bgWrap.onmouseleave = () => hideTip();
     bgWrap.innerHTML = rows.map(r => {
       const dp = Math.round(r.demProb * 100), rp = 100 - dp;
       const partyCls = r.margin >= 0 ? "d" : "r";
       const leadProb = Math.max(dp, rp);
       const isTip = r.code === tipCode;
-      return `<div class="bg-cell${isTip ? " tipping" : ""}">
+      return `<div class="bg-cell${isTip ? " tipping" : ""}" data-code="${r.code}">
         <div class="bg-code">${r.code}</div>
         <div class="bg-margin ${partyCls}">${fmtMargin(r.margin)}</div>
         <div class="bg-prob">${leadProb}% to hold</div>
