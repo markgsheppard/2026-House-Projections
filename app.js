@@ -229,6 +229,11 @@
     return `${party}+${v < 0.05 ? "0.0" : v.toFixed(1)}`;
   }
 
+  function undecidedRow() {
+    const u = undecidedShare(); if (u == null) return "";
+    const label = u >= 12 ? "Wide open" : u >= 8 ? "Still deciding" : u >= 5 ? "Mostly decided" : "Decided";
+    return `<div class="t-row"><span>Undecided (generic ballot)</span><b>${u.toFixed(1)}% &middot; ${label}</b></div>`;
+  }
   function districtTipHtml(f) {
     const e = effective(f);
     const dp = Math.round(e.demProb * 100);
@@ -236,6 +241,7 @@
     const isTip = f.code === currentTip;
     return `<div class="t-code">${f.code}</div>
        <div class="t-row"><span>Polling (generic ballot)</span><b>${fmtGB(genericBallot)}</b></div>
+       ${undecidedRow()}
        <div class="t-row"><span>Projected margin</span><b>${fmtMargin(e.margin)}</b></div>
        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
        <div class="t-row"><span style="color:var(--dem)">Win probability, DEM</span><b>${dp}%</b></div>
@@ -266,6 +272,7 @@
     const isTip = st === senTipState;
     return `<div class="t-code">${st}</div>
         <div class="t-row"><span>Polling (generic ballot)</span><b>${fmtGB(genericBallot)}</b></div>
+        ${undecidedRow()}
         <div class="t-row"><span>Projected margin</span><b>${fmtMargin(m)}</b></div>
         <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
         <div class="t-row"><span style="color:var(--dem)">Win probability, DEM</span><b>${dp}%</b></div>
