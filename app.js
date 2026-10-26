@@ -234,6 +234,16 @@
     const label = u >= 12 ? "Wide open" : u >= 8 ? "Still deciding" : u >= 5 ? "Mostly decided" : "Decided";
     return `<div class="t-row"><span>Undecided (generic ballot)</span><b>${u.toFixed(1)}% &middot; ${label}</b></div>`;
   }
+  function winnerRow(cand, margin, demProb) {
+    const c = cand || {};
+    const dem = margin >= 0;
+    let name = dem ? c.d : c.r;
+    let col = dem ? "var(--dem)" : "var(--gop)";
+    if (!dem && c.i && !c.r) { name = c.i; col = "var(--ink)"; }
+    if (!name) name = dem ? "Democrat" : "Republican";
+    const sure = demProb == null ? "" : (Math.max(demProb, 1 - demProb) < 0.6 ? ` <span class="t-tossup">toss-up</span>` : "");
+    return `<div class="t-row t-win"><span>Projected winner</span><b style="color:${col}">${name}${sure}</b></div>`;
+  }
   function districtTipHtml(f) {
     const e = effective(f);
     const dp = Math.round(e.demProb * 100);
@@ -250,7 +260,8 @@
        <div class="t-row"><span>Elasticity</span><b>${elastOf(f).toFixed(2)}&times;</b></div>
        ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}
        ${raceTrendSpark(e.margin, elastOf(f))}
-       ${histSpark((HIST.district || {})[f.code], e.margin)}`;
+       ${histSpark((HIST.district || {})[f.code], e.margin)}
+       ${winnerRow(f.cand, e.margin, e.demProb)}`;
   }
   function showTip(evt, d) {
     const f = forecast[d.id];
@@ -282,7 +293,8 @@
         <div class="t-row"><span>Elasticity</span><b>${elastOf(rc).toFixed(2)}&times;</b></div>
         ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
         ${raceTrendSpark(m, elastOf(rc))}
-        ${histSpark((HIST.state || {})[st], m)}`;
+        ${histSpark((HIST.state || {})[st], m)}
+        ${winnerRow(rc.cand, m, senProb(m))}`;
   }
   function moveTip(evt) {
     const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;

@@ -245,6 +245,9 @@ h1.title {
 .tip .t-code { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .01em; color: var(--ink); }
 .tip .t-row { display:flex; justify-content:space-between; gap:14px; margin-top:6px; color: var(--ink-soft); }
 .tip .t-row b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tip .t-win { margin-top:10px; padding-top:8px; border-top:1px solid var(--line, #e5e7eb); font-size:12.5px; }
+.tip .t-win b { font-weight:700; text-align:right; }
+.tip .t-tossup { color: var(--ink-faint); font-weight:500; font-size:11px; white-space:nowrap; }
 .tip .t-bar { height:5px; border-radius:99px; margin-top:9px; background: var(--line); overflow:hidden; display:flex;}
 .tip .t-bar i { display:block; height:100%; }
 .tip .t-tip { margin-top:8px; font-size:11px; color: var(--gold); font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
