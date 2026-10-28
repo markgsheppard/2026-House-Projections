@@ -239,9 +239,15 @@
     const dem = margin >= 0;
     let name = dem ? c.d : c.r;
     let col = dem ? "var(--dem)" : "var(--gop)";
-    if (!dem && c.i && !c.r) { name = c.i; col = "var(--ink)"; }
+    let note = "";
+    // same-party general (California top-two): both names, no toss-up tag
+    if (c.d && c.d2 && !c.r) { name = `${c.d} or ${c.d2}`; col = "var(--dem)"; note = "same-party race"; }
+    else if (c.r && c.r2 && !c.d) { name = `${c.r} or ${c.r2}`; col = "var(--gop)"; note = "same-party race"; }
+    // the leading party has nobody on the ballot: show who is actually running
+    else if (dem && !c.d && (c.r || c.i)) { name = c.r || c.i; col = c.r ? "var(--gop)" : "var(--ink)"; }
+    else if (!dem && !c.r && (c.i || c.d)) { name = c.i || c.d; col = c.i ? "var(--ink)" : "var(--dem)"; }
     if (!name) name = dem ? "Democrat" : "Republican";
-    const sure = demProb == null ? "" : (Math.max(demProb, 1 - demProb) < 0.6 ? ` <span class="t-tossup">toss-up</span>` : "");
+    const sure = note ? ` <span class="t-tossup">${note}</span>` : (demProb == null ? "" : (Math.max(demProb, 1 - demProb) < 0.6 ? ` <span class="t-tossup">toss-up</span>` : ""));
     return `<div class="t-row t-win"><span>Projected winner</span><b style="color:${col}">${name}${sure}</b></div>`;
   }
   function districtTipHtml(f) {
