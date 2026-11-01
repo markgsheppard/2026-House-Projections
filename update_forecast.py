@@ -129,6 +129,48 @@ def main():
     meta["demSeats"], meta["gopSeats"] = dem, len(margins) - dem
     meta["leader"] = "D" if dem >= meta["gopSeats"] else "R"
 
+    # undecided-vs-past-midterms chart: extend the 2026 line from the Polls sheet.
+    # The early part of the 2026 series is RCP's day-by-day average (frozen); from there on,
+    # each point is the mean undecided share (100 - D - R) across likely-voter polls that
+    # ended in the prior 14 days, which tracks RCP's method closely. Forced-choice polls skipped.
+    uh = data.get("undecidedHistory")
+    if uh and uh.get("series", {}).get("2026") and data.get("polls"):
+        s26 = uh["series"]["2026"]
+        frozen_through = uh.get("frozenThroughDay")
+        if frozen_through is None:
+            frozen_through = s26[-1][0]
+            uh["frozenThroughDay"] = frozen_through
+        frozen = [p for p in s26 if p[0] >= frozen_through]
+        eday = datetime.date.fromisoformat(uh["electionDays"]["2026"])
+        try:
+            today = datetime.datetime.strptime(meta["dataUpdated"], "%B %d, %Y").date()
+        except ValueError:
+            today = datetime.date.today()
+        pst = meta.get("pollsters", {})
+        rows = []
+        for p in data["polls"]:
+            pop = (p[5] if len(p) > 5 else None) or pst.get(p[0], {}).get("pop", "RV")
+            rows.append((datetime.date.fromisoformat(p[2]), float(p[3]), float(p[4]), pop))
+        def und_at(day):
+            t = eday - datetime.timedelta(days=day)
+            rec = [100 - d_ - r_ for (end, d_, r_, pop) in rows
+                   if t - datetime.timedelta(days=14) < end <= t and d_ + r_ < 98 and pop == "LV"]
+            return round(sum(rec) / len(rec), 1) if len(rec) >= 3 else None
+        days_out = max(0, (eday - today).days)
+        ext = []
+        day = frozen_through - 2
+        while day >= days_out:
+            u = und_at(day)
+            if u is not None: ext.append([day, u])
+            day -= 2
+        if not ext or ext[-1][0] != days_out:
+            u = und_at(days_out)
+            if u is not None: ext.append([days_out, u])
+        uh["series"]["2026"] = frozen + ext
+        uh["source"] = ("RealClearPolitics generic-ballot average, This Day in History (2022, 2018, 2014, 2010, and 2026 through "
+                        f"{frozen_through} days out); 2026 from then on is the mean undecided share across likely-voter polls in the "
+                        "Polls sheet ending in the prior 14 days. Undecided = 100 minus the Democratic and Republican shares, aligned by days before Election Day.")
+
     # write data.js
     (HERE / "data.js").write_text("window.HOUSE_DATA = " + json.dumps(data, separators=(",", ":")) + ";\n")
 

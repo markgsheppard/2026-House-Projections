@@ -402,6 +402,9 @@
     return out;
   }
   function undecidedShare() {
+    // same number the Undecided chart shows ("x% now"): the latest point of the 2026 series
+    const s26 = DATA.undecidedHistory && DATA.undecidedHistory.series && DATA.undecidedHistory.series["2026"];
+    if (s26 && s26.length) return s26[s26.length - 1][1];
     if (!POLLS.length) return null;
     const last = POLLS[POLLS.length - 1].end;
     const rec = POLLS.filter(p => p.end >= last - 21 * DAY && p.d + p.r < 98);   // skip forced-choice polls
@@ -567,7 +570,7 @@
     econ: ["Fundamentals", "State economic stress. Where a state’s misery index (unemployment + inflation) is above " + ECON_THRESH + ", this shifts races up to " + ECON_MAX + " points against the party holding the governorship."],
     bias: ["Polling bias", "Historical polling bias. On shifts every race " + POLLBIAS + " points toward Republicans, the average recent polling error in Democrats’ favor. Off takes the polls at face value."],
     polls: ["Polls", "Generic-ballot polls, weighted by pollster quality (538 grades) and recency, with registered-voter and adult samples shifted to a likely-voter basis. Lines are the Democratic (blue) and Republican (red) averages; the light bands are ±1 standard deviation. Hover the chart for any date."],
-    und: ["Undecided", "Share choosing neither party in the generic-ballot average (100 minus D and R), lined up by days before Election Day for 2026 and the last four midterms. The dashed line marks today."],
+    und: ["Undecided", "Share choosing neither party on the generic ballot (100 minus D and R), lined up by days before Election Day for 2026 and the last four midterms. Past years and the early 2026 line are RCP averages; the latest 2026 points are the mean of likely-voter polls from the prior two weeks. The dashed line marks today."],
     reg: ["Mean reversion", "Projects the generic ballot onto the historical ballot-vs-result line (actual = " + REG.a.toFixed(1) + " + " + REG.b.toFixed(2) + " × ballot, R² " + REG.r2.toFixed(2) + "). The leading party has usually won by a bit less than the final ballot. On applies the projection to the whole model. It overlaps with Polling bias and Undecided break, so use one lens, not all three."],
     mu: ["Expected margin", "The national Democratic margin each simulation is centered on, before ±6 points of uncertainty."]
   };
