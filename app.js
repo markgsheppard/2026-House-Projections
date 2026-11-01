@@ -267,6 +267,7 @@
        ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}
        ${raceTrendSpark(e.margin, elastOf(f))}
        ${histSpark((HIST.district || {})[f.code], e.margin)}
+       ${baselineRows((HIST.district || {})[f.code], e.margin, f.cand, "district")}
        ${winnerRow(f.cand, e.margin, e.demProb)}`;
   }
   function showTip(evt, d) {
@@ -300,6 +301,7 @@
         ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
         ${raceTrendSpark(m, elastOf(rc))}
         ${histSpark((HIST.state || {})[st], m)}
+        ${baselineRows((HIST.state || {})[st], m, rc.cand, "state")}
         ${winnerRow(rc.cand, m, senProb(m))}`;
   }
   function moveTip(evt) {
@@ -358,6 +360,8 @@
     const x = yr => pl + (yr - x0) * (W - pl - pr) / (x1 - x0);
     const y = v => pt + (hi - v) * (H - pt - pb) / (hi - lo);
     const y0 = y(0).toFixed(1);
+    const base = pts.length ? pts.reduce((a, p) => a + p[1], 0) / pts.length : null;
+    const baseLine = (hasProj && base != null) ? `<line x1="0" x2="${W}" y1="${y(base).toFixed(1)}" y2="${y(base).toFixed(1)}" stroke="#9aa0a8" stroke-width="1" stroke-dasharray="1 3"/>` : "";
     const P = (yr, v) => x(yr).toFixed(1) + "," + y(v).toFixed(1);
     const d = pts.map((p, k) => (k ? "L" : "M") + P(p[0], p[1])).join("");
     const last = pts[pts.length - 1];
@@ -379,11 +383,35 @@
           <clipPath id="${id}b"><rect x="0" y="${y0}" width="${W}" height="${(H - y0).toFixed(1)}"/></clipPath>
         </defs>
         <line x1="0" x2="${W}" y1="${y0}" y2="${y0}" stroke="#c8ccd1" stroke-width="1" stroke-dasharray="2 2"/>
+        ${baseLine}
         ${clip(d, "")}${dProj ? clip(dProj, ' stroke-dasharray="3 2"') : ""}
         ${dots}${projDot}
       </svg>
-      <div class="t-spark-x"><span>${YRS[0]}</span><span>${hasProj ? "pres. results · 2026 forecast" : ""}</span><span>${x1}</span></div>
+      <div class="t-spark-x"><span>${YRS[0]}</span><span>${hasProj ? "pres. results · dotted = baseline" : ""}</span><span>${x1}</span></div>
     </div>`;
+  }
+
+  // Baseline: the simple average of the seat's presidential margins (2008 to 2024). The two rows
+  // say how far this year's projection sits from that average, and which candidate that favors.
+  function baselineRows(series, proj, cand, what) {
+    const vals = (series || []).filter(v => typeof v === "number" && isFinite(v));
+    if (!vals.length || typeof proj !== "number" || !isFinite(proj)) return "";
+    const base = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const diff = proj - base;                         // + = Democrats ahead of the seat's usual lean
+    const c = cand || {};
+    const abs = Math.abs(diff);
+    let read, col;
+    if (abs < 1.5) { read = "In line with the " + what; col = "var(--ink)"; }
+    else {
+      const demSide = diff > 0;
+      const who = demSide ? (c.d || "Democrat") : (c.r || "Republican");
+      const deg = abs >= 5 ? "Strongly overperforming" : "Overperforming";
+      read = `${who}: ${deg.toLowerCase()}`;
+      col = demSide ? "var(--dem)" : "var(--gop)";
+    }
+    return `<div class="t-row"><span>Baseline, ${HYEARS[0]} to ${HYEARS[HYEARS.length - 1]} avg.</span><b>${fmtMargin(base)}</b></div>
+      <div class="t-row"><span>2026 vs. baseline</span><b style="color:${diff >= 0 ? "var(--dem)" : "var(--gop)"}">${diff >= 0 ? "D" : "R"} +${abs.toFixed(1)} shift</b></div>
+      <div class="t-row"><span>Performance</span><b style="color:${col}">${read}</b></div>`;
   }
 
   /* ---- generic-ballot polling sparkline + undecided --------------------- */
