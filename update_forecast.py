@@ -123,7 +123,16 @@ def main():
 
     # recompute baseline seat tally at the chosen generic ballot (for meta tidiness)
     anchor, gb = meta.get("anchor", 0), meta.get("genericBallot", 6.6)
-    swing = gb - anchor
+    # mean reversion is the site default: project the ballot onto the historical ballot-vs-result line
+    meta.setdefault("meanReversionDefault", True)
+    gb_eff = gb
+    rows = (data.get("gbHist") or {}).get("rows") or []
+    if meta.get("meanReversionDefault") and len(rows) >= 3:
+        xs = [r[2] for r in rows]; ys = [r[3] for r in rows]; n = len(xs)
+        mx, my = sum(xs) / n, sum(ys) / n
+        b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+        gb_eff = (my - b * mx) + b * gb
+    swing = gb_eff - anchor
     margins = sorted((f["margin"] + (f.get("elast", 1) or 1) * swing + (f.get("fund", {}).get("adj", 0) or 0) for f in fc.values()), reverse=True)
     dem = sum(1 for m in margins if m >= 0)
     meta["demSeats"], meta["gopSeats"] = dem, len(margins) - dem

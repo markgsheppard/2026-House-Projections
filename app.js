@@ -39,7 +39,7 @@
   let econLevel = 0;                    // Fundamentals slider, 0..100
   const POLLBIAS = (typeof meta.pollBias === "number") ? meta.pollBias : 2.9; // historical average D-favoring polling error (reference)
   let biasPts = 0;                      // Historical polling bias toggle: 0 (off) or POLLBIAS (on), points toward Republicans
-  let regOn = false;                    // mean-reversion: project the ballot onto the historical ballot-vs-result line
+  let regOn = (meta.meanReversionDefault !== false); // mean-reversion (on by default): project the ballot onto the historical ballot-vs-result line
   // Fit OLS (actual House popular vote on generic ballot) from the historical record
   const GBH = (DATA.gbHist && DATA.gbHist.rows) || [];
   let REG = { a: 0, b: 1, r2: 0, rse: 0, n: GBH.length };
@@ -232,7 +232,7 @@
   function undecidedRow() {
     const u = undecidedShare(); if (u == null) return "";
     const label = u >= 12 ? "Wide open" : u >= 8 ? "Still deciding" : u >= 5 ? "Mostly decided" : "Decided";
-    return `<div class="t-row"><span>Undecided (generic ballot)</span><b>${u.toFixed(1)}% &middot; ${label}</b></div>`;
+    return `<div class="t-row"><span>Undecided</span><b>${u.toFixed(1)}% &middot; ${label}</b></div>`;
   }
   function winnerRow(cand, margin, demProb) {
     const c = cand || {};
@@ -255,19 +255,21 @@
     const dp = Math.round(e.demProb * 100);
     const rp = 100 - dp;
     const isTip = f.code === currentTip;
-    return `<div class="t-code">${f.code}</div>
-       <div class="t-row"><span>Polling (generic ballot)</span><b>${fmtGB(genericBallot)}</b></div>
-       ${undecidedRow()}
+    return `<div class="t-head"><div class="t-code">${f.code}</div>${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}</div>
+      <div class="t-cols"><div class="t-col">
        <div class="t-row"><span>Projected margin</span><b>${fmtMargin(e.margin)}</b></div>
        <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
-       <div class="t-row"><span style="color:var(--dem)">Win probability, DEM</span><b>${dp}%</b></div>
-       <div class="t-row"><span style="color:var(--gop)">Win probability, GOP</span><b>${rp}%</b></div>
+       <div class="t-row"><span style="color:var(--dem)">Win prob., DEM</span><b>${dp}%</b></div>
+       <div class="t-row"><span style="color:var(--gop)">Win prob., GOP</span><b>${rp}%</b></div>
+       <div class="t-row"><span>Generic ballot</span><b>${fmtGB(genericBallot)}</b></div>
+       ${undecidedRow()}
        ${fundRow(f.fund, f.fund ? f.fund.adj : undefined)}
        <div class="t-row"><span>Elasticity</span><b>${elastOf(f).toFixed(2)}&times;</b></div>
-       ${isTip ? `<div class="t-tip">Tipping-point district</div>` : ``}
+        ${baselineRows((HIST.district || {})[f.code], e.margin, f.cand, "district")}
+      </div><div class="t-col">
        ${raceTrendSpark(e.margin, elastOf(f))}
        ${histSpark((HIST.district || {})[f.code], e.margin)}
-       ${baselineRows((HIST.district || {})[f.code], e.margin, f.cand, "district")}
+      </div></div>
        ${winnerRow(f.cand, e.margin, e.demProb)}`;
   }
   function showTip(evt, d) {
@@ -288,20 +290,22 @@
   function senateTipHtml(st, rc) {
     const m = senMargin(st), dp = Math.round(senProb(m) * 100), rp = 100 - dp;
     const isTip = st === senTipState;
-    return `<div class="t-code">${st}</div>
-        <div class="t-row"><span>Polling (generic ballot)</span><b>${fmtGB(genericBallot)}</b></div>
-        ${undecidedRow()}
+    return `<div class="t-head"><div class="t-code">${st}</div>${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}</div>
+      <div class="t-cols"><div class="t-col">
         <div class="t-row"><span>Projected margin</span><b>${fmtMargin(m)}</b></div>
         <div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${dp}%;background:var(--dem)"></i></div>
-        <div class="t-row"><span style="color:var(--dem)">Win probability, DEM</span><b>${dp}%</b></div>
-        <div class="t-row"><span style="color:var(--gop)">Win probability, GOP</span><b>${rp}%</b></div>
+        <div class="t-row"><span style="color:var(--dem)">Win prob., DEM</span><b>${dp}%</b></div>
+        <div class="t-row"><span style="color:var(--gop)">Win prob., GOP</span><b>${rp}%</b></div>
         <div class="t-row"><span>Held by</span><b>${rc.held === "D" ? "Democrat" : "Republican"}</b></div>
+        <div class="t-row"><span>Generic ballot</span><b>${fmtGB(genericBallot)}</b></div>
+        ${undecidedRow()}
         ${fundRow(rc.fund)}
         <div class="t-row"><span>Elasticity</span><b>${elastOf(rc).toFixed(2)}&times;</b></div>
-        ${isTip ? `<div class="t-tip">Tipping-point seat</div>` : ``}
+        ${baselineRows((HIST.state || {})[st], m, rc.cand, "state")}
+      </div><div class="t-col">
         ${raceTrendSpark(m, elastOf(rc))}
         ${histSpark((HIST.state || {})[st], m)}
-        ${baselineRows((HIST.state || {})[st], m, rc.cand, "state")}
+      </div></div>
         ${winnerRow(rc.cand, m, senProb(m))}`;
   }
   function moveTip(evt) {
@@ -373,7 +377,7 @@
     const clip = (path, dash) => `<path d="${path}" fill="none" stroke="var(--dem)" stroke-width="1.6" stroke-linejoin="round"${dash} clip-path="url(#${id}a)"/>` +
                                  `<path d="${path}" fill="none" stroke="var(--gop)" stroke-width="1.6" stroke-linejoin="round"${dash} clip-path="url(#${id}b)"/>`;
     const head = hasProj
-      ? `<span>Partisan lean, ${YRS[0]} to 2026</span><span>${fmtMargin(proj)} in 2026</span>`
+      ? `<span>Partisan lean, ${String(YRS[0]).slice(2)}&ndash;26</span><span>${fmtMargin(proj)} in 2026</span>`
       : `<span>Presidential margin</span><span>${fmtMargin(last[1])} in ${last[0]}</span>`;
     return `<div class="t-spark">
       <div class="t-spark-h">${head}</div>
@@ -387,7 +391,7 @@
         ${clip(d, "")}${dProj ? clip(dProj, ' stroke-dasharray="3 2"') : ""}
         ${dots}${projDot}
       </svg>
-      <div class="t-spark-x"><span>${YRS[0]}</span><span>${hasProj ? "pres. results · dotted = baseline" : ""}</span><span>${x1}</span></div>
+      <div class="t-spark-x"><span>${YRS[0]}</span><span>${hasProj ? "dotted = baseline" : ""}</span><span>${x1}</span></div>
     </div>`;
   }
 
@@ -409,8 +413,8 @@
       read = `${who}: ${deg.toLowerCase()}`;
       col = demSide ? "var(--dem)" : "var(--gop)";
     }
-    return `<div class="t-row"><span>Baseline, ${HYEARS[0]} to ${HYEARS[HYEARS.length - 1]} avg.</span><b>${fmtMargin(base)}</b></div>
-      <div class="t-row"><span>2026 vs. baseline</span><b style="color:${diff >= 0 ? "var(--dem)" : "var(--gop)"}">${diff >= 0 ? "D" : "R"} +${abs.toFixed(1)} shift</b></div>
+    return `<div class="t-row"><span>Baseline, ${String(HYEARS[0]).slice(2)}&ndash;${String(HYEARS[HYEARS.length - 1]).slice(2)} avg.</span><b>${fmtMargin(base)}</b></div>
+      <div class="t-row"><span>vs. baseline</span><b style="color:${diff >= 0 ? "var(--dem)" : "var(--gop)"}">${diff >= 0 ? "D" : "R"} +${abs.toFixed(1)} shift</b></div>
       <div class="t-row"><span>Performance</span><b style="color:${col}">${read}</b></div>`;
   }
 
@@ -457,7 +461,7 @@
     const fmtD = t => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
     const y50 = (lo < 50 && hi > 50) ? `<line x1="0" x2="${W}" y1="${y(50).toFixed(1)}" y2="${y(50).toFixed(1)}" stroke="#c8ccd1" stroke-width="1" stroke-dasharray="2 2"/>` : "";
     return `<div class="t-spark">
-      <div class="t-spark-h"><span>Race trend, from the polling average</span><span>${fmtMargin(last.d - last.r)}</span></div>
+      <div class="t-spark-h"><span>Race trend, polling avg.</span><span>${fmtMargin(last.d - last.r)}</span></div>
       <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
         ${y50}
         <path d="${line("d")}" fill="none" stroke="var(--dem)" stroke-width="1.6" stroke-linejoin="round"/>

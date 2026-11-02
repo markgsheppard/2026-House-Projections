@@ -591,3 +591,14 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 .df-col .reg-note { max-width: none; margin: 0; }
 .df-col .reg-note b { color: var(--ink); font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .duo-foot-grid { grid-template-columns: 1fr; gap: 18px; } }
+
+/* two-column tooltip for districts and Senate seats */
+.tip:has(.t-cols) { max-width: 470px; width: 470px; }
+.tip .t-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+.tip .t-head .t-tip { margin-top:0; }
+.tip .t-cols { display:grid; grid-template-columns: 1fr 176px; column-gap:18px; margin-top:2px; }
+.tip .t-col { min-width:0; }
+.tip .t-cols .t-col:last-child .t-spark:first-child { margin-top:8px; padding-top:0; border-top:0; }
+.tip .t-cols .t-row { font-size:12px; gap:10px; }
+.tip .t-cols .t-row b { text-align:right; }
+@media (max-width: 520px) { .tip:has(.t-cols) { width: auto; max-width: 280px; } .tip .t-cols { grid-template-columns: 1fr; } }
