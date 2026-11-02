@@ -190,7 +190,11 @@ def main():
         return f["margin"] + e * swing + (f.get("fund", {}).get("adj", 0) or 0)
     comp = sorted(fc.values(), key=lambda f: abs(eff_margin(f)))[:40]
     sen = meta.get("senate", [])
-    sen_up_d = sum(1 for rc in sen if rc.get("p", 0) >= 0.5)
+    from statistics import NormalDist
+    def sen_margin(rc):
+        pp = min(0.999, max(0.001, rc.get("p", 0)))
+        return math.sqrt(72) * NormalDist().inv_cdf(pp) + (rc.get("elast", 1) or 1) * (gb_eff - gb)
+    sen_up_d = sum(1 for rc in sen if sen_margin(rc) >= 0)
     notup_d = meta.get("senateNotUpD", 34)
     row = {
         "run_date": datetime.date.today().isoformat(),

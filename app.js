@@ -268,7 +268,7 @@
         ${baselineRows((HIST.district || {})[f.code], e.margin, f.cand, "district")}
       </div><div class="t-col">
        ${raceTrendSpark(e.margin, elastOf(f))}
-       ${histSpark((HIST.district || {})[f.code], e.margin)}
+       ${histSpark((HIST.district || {})[f.code], e.margin, "district")}
       </div></div>
        ${winnerRow(f.cand, e.margin, e.demProb)}`;
   }
@@ -304,7 +304,7 @@
         ${baselineRows((HIST.state || {})[st], m, rc.cand, "state")}
       </div><div class="t-col">
         ${raceTrendSpark(m, elastOf(rc))}
-        ${histSpark((HIST.state || {})[st], m)}
+        ${histSpark((HIST.state || {})[st], m, "state")}
       </div></div>
         ${winnerRow(rc.cand, m, senProb(m))}`;
   }
@@ -352,7 +352,7 @@
   let sparkSeq = 0;
   // series: presidential margins by HYEARS; proj: this race's 2026 projected margin
   // (moves with the polling and every slider), drawn as the final point.
-  function histSpark(series, proj) {
+  function histSpark(series, proj, what) {
     const hasProj = typeof proj === "number" && isFinite(proj);
     if (!series || series.filter(v => v != null).length + (hasProj ? 1 : 0) < 2) return "";
     const YRS = HYEARS.concat(hasProj ? [2026] : []);
@@ -365,7 +365,11 @@
     const y = v => pt + (hi - v) * (H - pt - pb) / (hi - lo);
     const y0 = y(0).toFixed(1);
     const base = pts.length ? pts.reduce((a, p) => a + p[1], 0) / pts.length : null;
-    const baseLine = (hasProj && base != null) ? `<line x1="0" x2="${W}" y1="${y(base).toFixed(1)}" y2="${y(base).toFixed(1)}" stroke="#9aa0a8" stroke-width="1" stroke-dasharray="1 3"/>` : "";
+    const yb = base != null ? y(base) : 0;
+    const baseLine = (hasProj && base != null)
+      ? `<line x1="0" x2="${W}" y1="${yb.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="#b8bcc2" stroke-width=".8"/>` +
+        `<text x="${(W - pr) * 0.42}" y="${(yb < 12 ? yb + 8.5 : yb - 3).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="#a3a8af" paint-order="stroke" stroke="#fff" stroke-width="2.5">${what === "district" ? "District" : "State"} baseline</text>`
+      : "";
     const P = (yr, v) => x(yr).toFixed(1) + "," + y(v).toFixed(1);
     const d = pts.map((p, k) => (k ? "L" : "M") + P(p[0], p[1])).join("");
     const last = pts[pts.length - 1];
@@ -391,7 +395,7 @@
         ${clip(d, "")}${dProj ? clip(dProj, ' stroke-dasharray="3 2"') : ""}
         ${dots}${projDot}
       </svg>
-      <div class="t-spark-x"><span>${YRS[0]}</span><span>${hasProj ? "dotted = baseline" : ""}</span><span>${x1}</span></div>
+      <div class="t-spark-x"><span>${YRS[0]}</span><span>${hasProj ? "pres. results · 2026 forecast" : ""}</span><span>${x1}</span></div>
     </div>`;
   }
 
