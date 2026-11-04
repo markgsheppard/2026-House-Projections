@@ -1,8 +1,10 @@
 name: Election results
 
-# Pulls live House and Senate results every ten minutes on election night and
-# commits results.json when it changes. GitHub Pages redeploys on each push, so
-# results.html shows the new numbers within a few minutes.
+# Keeps results.json current on election night. Each run loops for about five
+# and a half hours: pull the AP calls and counts, commit results.json when it
+# changed, sleep ten minutes, repeat. GitHub Pages redeploys on every commit.
+# The cron is only a safety net that restarts the chain if a run ends or dies;
+# the concurrency group queues at most one follow-up run behind the active one.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -18,6 +20,7 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,18 +33,23 @@ jobs:
       - name: Install dependencies
         run: pip install --quiet requests
 
-      - name: Fetch results
-        run: python scripts/fetch_results.py
-
-      - name: Commit if changed
+      - name: Fetch results every 10 minutes
+        env:
+          PASSES: 32
         run: |
           git config user.name "results-bot"
           git config user.email "results-bot@users.noreply.github.com"
-          if git diff --quiet -- results.json && [ -n "$(git ls-files results.json)" ]; then
-            echo "No change in results.json"
-            exit 0
-          fi
-          git add results.json
-          git commit -m "Results: $(date -u +'%Y-%m-%d %H:%M UTC')"
-          git pull --rebase origin main
-          git push
+          for i in $(seq 1 "$PASSES"); do
+            echo "== pass $i of $PASSES at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            git pull -q --rebase origin main || echo "pull failed, continuing with the local tree"
+            python scripts/fetch_results.py || echo "fetch failed, will retry on the next pass"
+            if git diff --quiet -- results.json && [ -n "$(git ls-files results.json)" ]; then
+              echo "no change in results.json"
+            else
+              git add results.json
+              git commit -q -m "Results: $(date -u +'%Y-%m-%d %H:%M UTC')"
+              git push -q origin HEAD:main || { git pull -q --rebase origin main && git push -q origin HEAD:main; }
+              echo "pushed"
+            fi
+            if [ "$i" -lt "$PASSES" ]; then sleep 600; fi
+          done
