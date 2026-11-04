@@ -125,10 +125,7 @@
       const base = (typeof r.margin === "number") ? colorScale(r.margin) : (s.actualSide === "D" ? cDem : cGop);
       return fade(base, 0.8);
     }
-    if (view === "shift") {
-      if (typeof r.margin !== "number") return s.called ? fade(s.actualSide === "D" ? cDem : cGop, 0.85) : NONE;
-      return fade(colorScale(r.margin), s.called ? 0.78 : 0.88);
-    }
+    if (view === "shift") return (r.status === "none") ? NONE : "#f4f5f7";
     if (s.called) {
       if (typeof r.margin === "number") return colorScale(r.margin);
       return s.actualSide === "D" ? colorScale(30) : s.actualSide === "R" ? colorScale(-30) : cFaint;
@@ -263,7 +260,7 @@
   }
   // shift arrows, one per district or state: pointing up and to the right for a move toward Democrats,
   // up and to the left for a move toward Republicans, length by the size of the shift
-  const ARROW = { angle: Math.PI / 6, perPt: 1.0, min: 4, max: 42, head: 4.2 };
+  const ARROW = { angle: Math.PI / 6, perPt: 0.55, min: 3, max: 24, head: 3 };
   function arrowPath(cx, cy, shift) {
     const len = Math.min(ARROW.max, ARROW.min + Math.abs(shift) * ARROW.perPt);
     const dir = shift >= 0 ? 1 : -1;
@@ -288,9 +285,9 @@
       .attr("d", d => arrowPath(d.c[0], d.c[1], d.sh))
       .attr("fill", "none")
       .attr("stroke", d => d.sh >= 0 ? cDem : cGop)
-      .attr("stroke-width", d => d.big ? 2.4 : 1.6)
+      .attr("stroke-width", d => d.big ? 1.6 : 1.1)
       .attr("stroke-linecap", "round").attr("stroke-linejoin", "round")
-      .attr("opacity", d => d.called ? 0.95 : 0.6)
+      .attr("opacity", d => d.called ? 0.9 : 0.5)
       .attr("paint-order", "stroke");
   }
   function renderLegend() {
