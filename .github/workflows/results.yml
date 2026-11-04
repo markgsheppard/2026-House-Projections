@@ -1,8 +1,9 @@
 name: Election results
 
-# Keeps results.json current on election night and through the count. Each run
-# loops for about five hours: pull the AP calls and counts, commit results.json
-# when it changed, sleep two minutes, repeat. GitHub Pages redeploys on every
+# Keeps results.json (and county-shift.json for the Shift view) current on
+# election night and through the count. Each run loops for about five hours:
+# pull the AP calls and counts, commit when something changed, sleep two
+# minutes, repeat. GitHub Pages redeploys on every
 # commit. The cron is only a safety net that restarts the chain if a run ends or
 # dies; the concurrency group queues at most one follow-up run behind the active
 # one. After END_UTC (three days past election night) a run disables this
@@ -70,10 +71,15 @@ jobs:
             echo "== pass $i of $PASSES at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             git pull -q --rebase origin main || echo "pull failed, continuing with the local tree"
             python scripts/fetch_results.py || echo "fetch failed, will retry on the next pass"
-            if git diff --quiet -- results.json && [ -n "$(git ls-files results.json)" ]; then
-              echo "no change in results.json"
+            # county margins for the Shift view: Senate every other pass, House every fifth pass
+            args=""
+            if [ $((i % 2)) -eq 1 ]; then args="--senate"; fi
+            if [ $((i % 5)) -eq 1 ]; then args="$args --house"; fi
+            if [ -n "$args" ]; then python scripts/fetch_counties.py $args || echo "county fetch failed, will retry"; fi
+            if git diff --quiet -- results.json county-shift.json && [ -n "$(git ls-files results.json)" ] && [ -z "$(git ls-files --others --exclude-standard county-shift.json)" ]; then
+              echo "no change in results.json or county-shift.json"
             else
-              git add results.json
+              git add results.json; [ -f county-shift.json ] && git add county-shift.json
               git commit -q -m "Results: $(date -u +'%Y-%m-%d %H:%M UTC')"
               git push -q origin HEAD:main || { git pull -q --rebase origin main && git push -q origin HEAD:main; }
               echo "pushed"

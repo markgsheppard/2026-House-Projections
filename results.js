@@ -13,6 +13,8 @@
 
   let FF = window.FINAL_FORECAST || null;     // frozen projection (inlined or fetched)
   let RES = window.RESULTS_DATA || null;      // live results (inlined or fetched)
+  let COUNTY = window.COUNTY_SHIFT || null;   // county margins for the Shift view (county-shift.json)
+  let CENT = window.COUNTY_CENTROIDS || null; // county centroids, lon/lat (county-centroids.json)
 
   const HOUSE_WIN = 218;
   const SEN_WIN_D = (typeof meta.senateWin === "number") ? meta.senateWin : 51;   // Democrats need 51; the Vice President breaks ties for Republicans
@@ -260,34 +262,50 @@
   }
   // shift arrows, one per district or state: pointing up and to the right for a move toward Democrats,
   // up and to the left for a move toward Republicans, length by the size of the shift
-  const ARROW = { angle: Math.PI / 6, perPt: 0.55, min: 3, max: 24, head: 3 };
-  function arrowPath(cx, cy, shift) {
-    const len = Math.min(ARROW.max, ARROW.min + Math.abs(shift) * ARROW.perPt);
+  const ARROW = { angle: Math.PI / 6, perPt: 0.55, min: 3, max: 24, head: 3 };          // one arrow per state or district
+  const ARROW_CO = { angle: Math.PI / 6, perPt: 0.32, min: 1.6, max: 14, head: 2.1 };   // one arrow per county
+  function arrowPath(cx, cy, shift, cfg) {
+    const A = cfg || ARROW;
+    const len = Math.min(A.max, A.min + Math.abs(shift) * A.perPt);
     const dir = shift >= 0 ? 1 : -1;
-    const ux = dir * Math.cos(ARROW.angle), uy = -Math.sin(ARROW.angle);
+    const ux = dir * Math.cos(A.angle), uy = -Math.sin(A.angle);
     const x1 = cx + ux * len, y1 = cy + uy * len;
-    const h = ARROW.head, a = Math.PI / 7;
+    const h = A.head, a = Math.PI / 7;
     const bx = -ux, by = -uy;   // back along the shaft
     const lx = x1 + h * (bx * Math.cos(a) - by * Math.sin(a)), ly = y1 + h * (bx * Math.sin(a) + by * Math.cos(a));
     const rx = x1 + h * (bx * Math.cos(-a) - by * Math.sin(-a)), ry = y1 + h * (bx * Math.sin(-a) + by * Math.cos(-a));
     return `M${cx.toFixed(1)},${cy.toFixed(1)}L${x1.toFixed(1)},${y1.toFixed(1)}M${lx.toFixed(1)},${ly.toFixed(1)}L${x1.toFixed(1)},${y1.toFixed(1)}L${rx.toFixed(1)},${ry.toFixed(1)}`;
   }
+  function countyRows(st) { const rows = COUNTY && COUNTY[chamber]; return (rows && rows[st] && Object.keys(rows[st]).length && CENT) ? rows[st] : null; }
   function renderShift() {
     gShift.selectAll("*").remove();
     if (view !== "shift") return;
     const items = [];
+    // counties: the AP count by county against the county's 2024 presidential margin
+    const rows = (COUNTY && COUNTY[chamber]) || {};
+    for (const st in rows) {
+      if (chamber === "senate" && !senUp[st]) continue;
+      if (!countyRows(st)) continue;
+      for (const fips in rows[st]) {
+        const r = rows[st][fips], ll = CENT[fips]; if (!ll || !r || !r[3]) continue;
+        const c = projection(ll); if (!c || !isFinite(c[0])) continue;
+        const eevp = r[2] || 0;
+        items.push({ c, sh: r[0] - r[1], op: eevp < 5 ? 0.2 : 0.3 + 0.6 * Math.min(1, eevp / 90), county: true });
+      }
+    }
+    // states or districts with no county counts (Alaska, say): one arrow for the whole race
     if (chamber === "senate") {
-      stateFeatures.forEach(f => { if (!senUp[f.id]) return; const sh = shiftOf("senate", f.id); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, called: score("senate", f.id).called, big: true }); });
+      stateFeatures.forEach(f => { if (!senUp[f.id] || countyRows(f.id)) return; const sh = shiftOf("senate", f.id); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, op: score("senate", f.id).called ? 0.9 : 0.5, big: true }); });
     } else {
-      allDistricts.forEach(f => { const code = codeOf(f.id), sh = shiftOf("house", code); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, called: score("house", code).called, big: false }); });
+      allDistricts.forEach(f => { const code = codeOf(f.id), st = forecast[f.id].state; if (countyRows(st)) return; const sh = shiftOf("house", code); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, op: score("house", code).called ? 0.9 : 0.5, big: false }); });
     }
     gShift.selectAll("path").data(items).join("path")
-      .attr("d", d => arrowPath(d.c[0], d.c[1], d.sh))
+      .attr("d", d => arrowPath(d.c[0], d.c[1], d.sh, d.county ? ARROW_CO : ARROW))
       .attr("fill", "none")
       .attr("stroke", d => d.sh >= 0 ? cDem : cGop)
-      .attr("stroke-width", d => d.big ? 1.6 : 1.1)
+      .attr("stroke-width", d => d.county ? 0.85 : (d.big ? 1.6 : 1.1))
       .attr("stroke-linecap", "round").attr("stroke-linejoin", "round")
-      .attr("opacity", d => d.called ? 0.9 : 0.5)
+      .attr("opacity", d => d.op)
       .attr("paint-order", "stroke");
   }
   function renderLegend() {
@@ -295,7 +313,7 @@
     const chip = (style, label) => `<span class="chip"><i style="${style}"></i>${label}</span>`;
     const arrow = (col, dir) => `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="${dir > 0 ? "M2,12L19,3M13,2L19,3L18,9" : "M20,12L3,3M9,2L3,3L4,9"}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     if (view === "shift") {
-      el.innerHTML = `<span class="chip">${arrow(cDem, 1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, -1)}Shift toward Republicans</span><span class="chip chip-note">from the 2024 presidential margin; longer arrows are bigger shifts, faint ones are still counting</span>`;
+      el.innerHTML = `<span class="chip">${arrow(cDem, 1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, -1)}Shift toward Republicans</span><span class="chip chip-note">one arrow per county, from the county&rsquo;s 2024 presidential margin; longer arrows are bigger shifts, faint ones have little of the vote counted</span>`;
       return;
     }
     el.innerHTML = view === "misses"
@@ -457,9 +475,15 @@
     if (!r.ok) throw new Error(name + " " + r.status);
     return r.json();
   }
+  async function loadCounties() {
+    try { if (!CENT) CENT = await getJSON("county-centroids.json"); } catch (e) { /* no centroids: state and district arrows */ }
+    try { const j = await getJSON("county-shift.json"); if (j && (j.senate || j.house)) COUNTY = j; } catch (e) { /* keep what we have */ }
+    if (view === "shift") renderShift();
+  }
   async function loadResults(first) {
     try { const j = await getJSON("results.json"); if (j && j.house) { RES = j; renderAll(!first); } }
     catch (e) { if (first && !RES) renderAll(false); }
+    loadCounties();
   }
   (async function init() {
     if (!FF) { try { FF = await getJSON("final-forecast.json"); } catch (e) { console.warn("final-forecast.json missing", e); } }
