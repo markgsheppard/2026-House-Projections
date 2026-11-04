@@ -27,7 +27,7 @@
   const colorStops = [[-40, "#b62d2d"], [-22, "#d43d34"], [-9, "#ec5a44"], [-2, "#f6c4bb"], [0, "#f4f2f2"], [2, "#a9c9f2"], [9, "#2e74d0"], [22, "#0d52bd"], [40, "#08306b"]];
   const colorScale = d3.scaleLinear().domain(colorStops.map(s => s[0])).range(colorStops.map(s => s[1])).interpolate(d3.interpolateRgb).clamp(true);
   const fade = (col, k) => d3.interpolateRgb(col, "#ffffff")(k);
-  const NONE = "#e6e7e9", LIGHT = "#eef0f2";
+  const NONE = "#eceef0", COUNTING = "#d3d6da", LIGHT = "#f1f2f4";
 
   /* ---- geography (same projection as the forecast page) ---------------- */
   const allDistricts = topojson.feature(districts, districts.objects.districts).features.filter(f => forecast[f.id]);
@@ -59,9 +59,11 @@
   function fmtNum(n) { return (n == null) ? "" : Number(n).toLocaleString("en-US"); }
   function projFor(ch, code) { if (!FF) return null; return ch === "senate" ? (FF.senate || {})[code] : (FF.house || {})[code]; }
   function resFor(ch, code) { if (!RES) return null; return ch === "senate" ? (RES.senate || {})[code] : (RES.house || {})[code]; }
-  function projName(p, side) {
-    const c = (p && p.cand) || {};
-    return side === "D" ? (c.d || (c.i && !c.d ? c.i : "Democrat")) : (c.r || "Republican");
+  // the projected party's candidate: the feed's name (who is actually on the ballot) first, then the forecast's
+  function projName(p, side, r) {
+    const c = (p && p.cand) || {}, f = r || {};
+    if (side === "D") return (f.d && f.d.name) || c.d || (f.i && !f.d && f.i.name) || (c.i && !c.d ? c.i : "Democrat");
+    return (f.r && f.r.name) || c.r || "Republican";
   }
   // one record per race: what happened, what the model said, and whether it was right
   function score(ch, code) {
@@ -73,9 +75,10 @@
     else if (r.winner === "O") actualSide = "I";
     const called = r.status === "called";
     const correct = (called && projParty) ? (actualSide === projParty) : null;
-    const err = (called && p && typeof r.margin === "number") ? r.margin - p.margin : null;
+    const errLive = (p && typeof r.margin === "number") ? r.margin - p.margin : null;   // result so far minus projection
+    const err = called ? errLive : null;                                                   // scored only once called
     const lead = (typeof r.margin === "number") ? (r.margin >= 0 ? "D" : "R") : null;
-    return { code, p, r, projParty, actualSide, called, correct, err, lead,
+    return { code, p, r, projParty, actualSide, called, correct, err, errLive, lead,
              winnerName: actualSide === "D" ? ((r.d && r.d.name) || (r.i && r.i.name) || "Democrat") : actualSide === "R" ? ((r.r && r.r.name) || "Republican") : ((r.i && r.i.name) || "Independent") };
   }
   function racesFor(ch) {
@@ -108,7 +111,7 @@
       if (typeof r.margin === "number") return colorScale(r.margin);
       return s.actualSide === "D" ? colorScale(30) : s.actualSide === "R" ? colorScale(-30) : cFaint;
     }
-    if (r.status === "counting" && typeof r.margin === "number") return fade(colorScale(r.margin), 0.55);   // leading, not called
+    if (r.status === "counting") return COUNTING;   // still counting: grey until AP calls it
     return NONE;
   }
   function senFill(st) { return senUp[st] ? fillFor("senate", st) : LIGHT; }
@@ -139,15 +142,15 @@
     if (p) {
       const pd = Math.round(p.demProb * 100);
       model += `<div class="t-row"><span>Model projected</span><b>${fmtMargin(p.margin)} &middot; ${p.margin >= 0 ? pd : 100 - pd}% ${p.margin >= 0 ? "D" : "R"}</b></div>`;
-      if (s.err !== null) model += `<div class="t-row"><span>Error</span><b>${fmtMargin(s.err)} <span class="t-soft">(result more ${s.err >= 0 ? "Democratic" : "Republican"})</span></b></div>`;
+      if (s.errLive !== null) model += `<div class="t-row"><span>Model off by</span><b style="color:${s.errLive >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(s.errLive)}</b></div><div class="t-soft t-sub">${s.called ? "result" : "result so far"} ${Math.abs(s.errLive).toFixed(1)} pts more ${s.errLive >= 0 ? "Democratic" : "Republican"} than projected</div>`;
     }
     let call = "";
     if (p && s.called) {
       call = s.correct
         ? `<div class="t-row t-win"><span>Model call</span><b style="color:var(--dem-deep)">Correct: ${s.winnerName}</b></div>`
-        : `<div class="t-row t-win"><span>Model call</span><b style="color:var(--gop-deep)">Missed: projected ${projName(p, s.projParty)}, ${s.winnerName} won</b></div>`;
+        : `<div class="t-row t-win"><span>Model call</span><b style="color:var(--gop-deep)">Missed: projected ${projName(p, s.projParty, r)}, ${s.winnerName} won</b></div>`;
     } else if (p) {
-      call = `<div class="t-row t-win"><span>Model call</span><b>${projName(p, s.projParty)} favored, ${Math.round((s.projParty === "D" ? p.demProb : 1 - p.demProb) * 100)}%</b></div>`;
+      call = `<div class="t-row t-win"><span>Model call</span><b>${projName(p, s.projParty, r)} favored, ${Math.round((s.projParty === "D" ? p.demProb : 1 - p.demProb) * 100)}%</b></div>`;
     }
     const held = (ch === "senate" && senUp[code]) ? `<div class="t-row"><span>Held by</span><b>${senUp[code].held === "D" ? "Democrat" : "Republican"}</b></div>` : "";
     return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${held}${model}${call}`;
@@ -227,7 +230,7 @@
     const chip = (style, label) => `<span class="chip"><i style="${style}"></i>${label}</span>`;
     el.innerHTML = view === "misses"
       ? chip(`background:${cGop};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Republican won") + chip(`background:${cDem};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Democrat won") + chip(`background:${fade(cDem, .8)}`, "Model correct") + chip(`background:${LIGHT}`, "Not yet called")
-      : chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");
+      : chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${COUNTING}`, "Counting, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");
   }
 
   /* ---- where the model missed ------------------------------------------- */
