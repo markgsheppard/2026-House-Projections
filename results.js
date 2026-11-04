@@ -69,6 +69,8 @@
     const v = (series || []).filter(x => typeof x === "number" && isFinite(x));
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
   }
+  function stateBaselineOf(code) { return baselineOf("senate", code.slice(0, 2)); }   // the district's state, 2008 to 2024 average
+  let baseRef = "state";   // Baseline view on the House map: "state" (the district's state) or "district" (its own lines)
   const HY = HIST.years || [2008, 2012, 2016, 2020, 2024];
   function pres2024(ch, code) {
     const series = ch === "senate" ? (HIST.state || {})[code] : (HIST.district || {})[code];
@@ -145,7 +147,7 @@
   function fillFor(ch, code) {
     if (view === "redrawn" && ch === "house") { const base = resultFill(ch, code); return isRedrawn(code) ? base : fade(base, 0.82); }
     if (view === "baseline") {
-      const s = score(ch, code), r = s.r, b = baselineOf(ch, code);
+      const s = score(ch, code), r = s.r, b = (ch === "house" && baseRef === "state") ? stateBaselineOf(code) : baselineOf(ch, code);
       if (typeof r.margin !== "number" || b === null) return r.status === "none" ? NONE : "#f4f5f7";
       const col = colorScale(r.margin - b);
       return s.called ? col : fade(col, 0.45);
@@ -199,10 +201,18 @@
     const bar = tv > 0 ? `<div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${100 - dp - rp}%;background:transparent"></i><i style="width:${dp}%;background:var(--dem)"></i></div>` : "";
     const margin = (typeof r.margin === "number") ? `<div class="t-row"><span>${s.called ? "Margin" : "Margin so far"}</span><b>${fmtMargin(r.margin)}</b></div>` : "";
     // the result against the place's usual lean: the 2008 to 2024 presidential average, as on the forecast page
-    const base = baselineOf(ch, code);
-    const vsBase = (typeof r.margin === "number" && base !== null)
-      ? `<div class="t-row"><span>vs. baseline${s.called ? "" : ", so far"}</span><b style="color:${r.margin - base >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(r.margin - base)}</b></div><div class="t-soft t-sub">${ch === "senate" ? "state" : "district"} baseline ${fmtMargin(base)}, 2008 to 2024 pres. avg.</div>`
-      : "";
+    const base = baselineOf(ch, code), sbase = ch === "house" ? stateBaselineOf(code) : null;
+    const signed = v => `<b style="color:${v >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(v)}</b>`;
+    let vsBase = "";
+    if (typeof r.margin === "number" && (base !== null || sbase !== null)) {
+      const sofar = s.called ? "" : ", so far";
+      if (ch === "senate") vsBase = `<div class="t-row"><span>vs. state baseline${sofar}</span>${signed(r.margin - base)}</div><div class="t-soft t-sub">state baseline ${fmtMargin(base)}, 2008 to 2024 pres. avg.</div>`;
+      else {
+        if (sbase !== null) vsBase += `<div class="t-row"><span>vs. state baseline${sofar}</span>${signed(r.margin - sbase)}</div>`;
+        if (base !== null) vsBase += `<div class="t-row"><span>vs. district baseline${sofar}</span>${signed(r.margin - base)}</div>`;
+        vsBase += `<div class="t-soft t-sub">${sbase !== null ? `state ${fmtMargin(sbase)}` : ""}${sbase !== null && base !== null ? " &middot; " : ""}${base !== null ? `district ${fmtMargin(base)}` : ""}, 2008 to 2024 pres. avg.</div>`;
+      }
+    }
     let outlook = "";
     if (!s.called) {
       const k = outlookOf(ch, code);
@@ -317,6 +327,7 @@
     else { (animate ? paths.transition().duration(400) : paths).attr("fill", d => fillFor("house", codeOf(d.id))); }
     paths.classed("missed", d => view === "misses" && score("house", codeOf(d.id)).correct === false);
     paths.classed("redrawn-on", d => view === "redrawn" && isRedrawn(codeOf(d.id)));
+    paths.classed("redrawn-miss", d => view === "redrawn" && isRedrawn(codeOf(d.id)) && score("house", codeOf(d.id)).correct === false);
     senatePaths.classed("missed", d => view === "misses" && senUp[d.id] && score("senate", d.id).correct === false);
     renderShift();
   }
@@ -374,8 +385,12 @@
     const ends = document.getElementById("legend-ends");
     if (ends) ends.innerHTML = view === "baseline" ? "<span>R +30 vs. baseline</span><span>At baseline</span><span>D +30 vs. baseline</span>" : "<span>R +30</span><span>Even</span><span>D +30</span>";
     if (view === "baseline") {
-      el.innerHTML = chip(`background:${colorScale(-18)}`, "Running more Republican than the baseline") + chip(`background:${colorScale(18)}`, "Running more Democratic than the baseline") + chip(`background:${fade(colorScale(18), .45)}`, "Not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "") +
-        `<span class="chip chip-note">margin so far minus the ${chamber === "senate" ? "state" : "district"}&rsquo;s 2008 to 2024 presidential average, whoever is winning</span>`;
+      const sw = chamber === "house"
+        ? `<span class="chip chip-switch" role="group" aria-label="Baseline reference"><button type="button" data-baseref="state" aria-pressed="${baseRef === "state"}">State baseline</button><button type="button" data-baseref="district" aria-pressed="${baseRef === "district"}">District baseline</button></span>`
+        : "";
+      const what = chamber === "senate" ? "state" : (baseRef === "state" ? "district&rsquo;s state" : "district");
+      el.innerHTML = sw + chip(`background:${colorScale(-18)}`, "Running more Republican than the baseline") + chip(`background:${colorScale(18)}`, "Running more Democratic than the baseline") + chip(`background:${fade(colorScale(18), .45)}`, "Not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "") +
+        `<span class="chip chip-note">margin so far minus the ${what}&rsquo;s 2008 to 2024 presidential average, whoever is winning</span>`;
       return;
     }
     const arrow = (col, dir) => `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="${dir > 0 ? "M2,12L19,3M13,2L19,3L18,9" : "M20,12L3,3M9,2L3,3L4,9"}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -385,9 +400,9 @@
     }
     if (view === "redrawn") {
       if (chamber === "senate") { el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + `<span class="chip chip-note">Redrawn applies to the House map; no Senate seat changed shape</span>`; return; }
-      let d = 0, r = 0, u = 0; racesFor("house").forEach(code => { if (!isRedrawn(code)) return; const sc = score("house", code); if (!sc.called) u++; else if (sc.actualSide === "D") d++; else r++; });
-      el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + chip(`background:${fade(cGop, .82)}`, "Not redrawn") +
-        `<span class="chip chip-note">full color: the ${d + r + u} districts in the ${REDRAWN.size} states with new maps for 2026 (${REDRAWN_LIST}); so far ${d} D, ${r} R called, ${u} uncalled</span>`;
+      let d = 0, r = 0, u = 0, miss = 0; racesFor("house").forEach(code => { if (!isRedrawn(code)) return; const sc = score("house", code); if (!sc.called) u++; else { if (sc.actualSide === "D") d++; else r++; if (sc.correct === false) miss++; } });
+      el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + chip(`background:${cDem};box-shadow:0 0 0 2px ${cInk} inset`, "Model missed, redrawn district") + chip(`background:${fade(cGop, .82)}`, "Not redrawn") +
+        `<span class="chip chip-note">full color: the ${d + r + u} districts in the ${REDRAWN.size} states with new maps for 2026 (${REDRAWN_LIST}); so far ${d} D, ${r} R called, ${u} uncalled, ${miss} ${miss === 1 ? "miss" : "misses"}</span>`;
       return;
     }
     if (view === "outlook") {
@@ -536,6 +551,10 @@
     hideTip(); renderAll(false);
   }
   document.querySelectorAll(".ch-tab").forEach(t => t.addEventListener("click", () => setChamber(t.dataset.ch)));
+  document.getElementById("legend-chips").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-baseref]"); if (!b) return;
+    baseRef = b.dataset.baseref; recolor(true); renderLegend();
+  });
   document.querySelectorAll(".view-toggle").forEach(wrap => wrap.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-view]"); if (!btn) return;
     view = btn.dataset.view;
