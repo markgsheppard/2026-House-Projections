@@ -1,0 +1,47 @@
+name: Election results
+
+# Pulls live House and Senate results every ten minutes on election night and
+# commits results.json when it changes. GitHub Pages redeploys on each push, so
+# results.html shows the new numbers within a few minutes.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: election-results
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet requests
+
+      - name: Fetch results
+        run: python scripts/fetch_results.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "results-bot"
+          git config user.email "results-bot@users.noreply.github.com"
+          if git diff --quiet -- results.json && [ -n "$(git ls-files results.json)" ]; then
+            echo "No change in results.json"
+            exit 0
+          fi
+          git add results.json
+          git commit -m "Results: $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git pull --rebase origin main
+          git push

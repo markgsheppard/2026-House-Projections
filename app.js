@@ -1318,4 +1318,29 @@
   renderUndSpark();
   render(true);
   setTimeout(() => { SIM = buildSim(20260923); renderSim(); }, 40);
+
+  /* ---- snapshot of the current forecast at the active settings -----------
+     scripts/freeze_forecast.js calls this to write final-forecast.json, the
+     frozen projection the results page scores against. */
+  window.HOUSE_FORECAST_SNAPSHOT = function () {
+    const house = {}, senate = {};
+    let hd = 0;
+    for (const id in forecast) {
+      const f = forecast[id], e = effective(f);
+      if (e.party === "D") hd++;
+      house[f.code] = { margin: +e.margin.toFixed(2), demProb: +e.demProb.toFixed(4), state: f.state, cand: f.cand || {} };
+    }
+    let sd = SEN_NOTUP_D;
+    (meta.senate || []).forEach(rc => {
+      const m = senMargin(rc.st); if (m >= 0) sd++;
+      senate[rc.st] = { margin: +m.toFixed(2), demProb: +senProb(m).toFixed(4), held: rc.held || null, cand: rc.cand || {} };
+    });
+    return {
+      asOf: meta.dataUpdated || "", genericBallot, effectiveBallot: +(genericBallot + regAdj() - biasPts).toFixed(2),
+      settings: { meanReversion: regOn, pollingBias: biasPts, mailIn: mailDrag, fundamentals: econLevel },
+      tally: { house: { d: hd, r: Object.keys(forecast).length - hd }, senate: { d: sd, r: 100 - sd } },
+      tipping: { house: currentTip, senate: senTipState },
+      house, senate
+    };
+  };
 })();
