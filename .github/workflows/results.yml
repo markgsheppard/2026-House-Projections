@@ -3,10 +3,10 @@ name: Election results
 # Keeps results.json (and county-shift.json for the Shift view) current on
 # election night and through the count. Each run loops for about five hours:
 # pull the AP calls and counts, commit when something changed, sleep two
-# minutes, repeat. GitHub Pages redeploys on every
-# commit. The cron is only a safety net that restarts the chain if a run ends or
-# dies; the concurrency group queues at most one follow-up run behind the active
-# one. After END_UTC (three days past election night) a run disables this
+# minutes, repeat, and queue the next run before finishing. GitHub Pages
+# redeploys on every commit. The cron is only a backstop that restarts the chain
+# if a run dies; the concurrency group queues at most one follow-up run behind
+# the active one. After END_UTC (three days past election night) a run disables this
 # workflow instead of fetching, so the chain stops on its own.
 on:
   schedule:
@@ -101,3 +101,13 @@ jobs:
             fi
             if [ "$i" -lt "$PASSES" ]; then sleep "$SLEEP"; fi
           done
+
+      - name: Start the next run
+        # the chain restarts itself; the cron is only a backstop, since GitHub's schedule can skip beats
+        if: steps.gate.outputs.stop == '0' && always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%s)" -lt "$(date -u -d "$END_UTC" +%s)" ]; then
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/results.yml/dispatches" -f ref=main && echo "next run queued" || echo "could not queue the next run; the cron will"
+          fi
