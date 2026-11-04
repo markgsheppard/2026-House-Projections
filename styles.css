@@ -651,6 +651,7 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 .tip .t-soft { color: var(--ink-faint); font-weight: 500; font-size: 11px; }
 .tip .t-sub { display: block; text-align: right; margin-top: 1px; line-height: 1.3; }
 .results-page .tip { width: 300px; max-width: 300px; }
+.results-page .view-toggle { flex-wrap: wrap; }
 @media (max-width: 720px) {
   .verdict .verdict-sub { display: block; margin: 4px 0 0; white-space: normal; }
   .gauge-mid::after { top: auto; bottom: -22px; }

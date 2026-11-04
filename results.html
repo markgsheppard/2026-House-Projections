@@ -76,10 +76,12 @@
               <button type="button" data-view="misses" aria-pressed="false">Misses</button>
               <button type="button" data-view="shift" aria-pressed="false">Shift</button>
               <button type="button" data-view="outlook" aria-pressed="false">Outlook</button>
+              <button type="button" data-view="baseline" aria-pressed="false">Baseline</button>
+              <button type="button" data-view="redrawn" aria-pressed="false">Redrawn</button>
             </div>
           </div>
         </div>
-        <p class="ctrl-note">Called is the share of races AP has called. The model record counts called races whose winner matched the frozen projection; the average miss and the lean compare actual margins with projected margins in those races. Switch the view to Misses to see every called race the model got wrong, to Shift for an arrow in every county showing how far its vote so far has moved from its 2024 presidential margin, or to Outlook to fill in the uncalled races from the way their counts are trending and see a likely final tally.</p>
+        <p class="ctrl-note">Called is the share of races AP has called. The model record counts called races whose winner matched the frozen projection; the average miss and the lean compare actual margins with projected margins in those races. Switch the view to Misses to see every called race the model got wrong, to Shift for an arrow in every county showing how far its vote so far has moved from its 2024 presidential margin, to Outlook to fill in the uncalled races from the way their counts are trending and see a likely final tally, to Baseline to color each race by how far its result sits from the place&rsquo;s usual lean, or to Redrawn to pick out the districts whose lines were redrawn for 2026 with everything else faded.</p>
       </div>
     </section>
 
@@ -111,7 +113,7 @@
       <div class="legend">
         <div>
           <div class="scale"></div>
-          <div class="ends"><span>R +30</span><span>Even</span><span>D +30</span></div>
+          <div class="ends" id="legend-ends"><span>R +30</span><span>Even</span><span>D +30</span></div>
         </div>
         <span id="legend-chips" class="legend-chips"></span>
       </div>
@@ -130,7 +132,7 @@
 
       <section class="regress">
         <h2>Forecast vs. result</h2>
-        <p class="lede">Each dot is a called race: the model&rsquo;s final projected margin across, the actual margin up. Dots on the dashed diagonal are perfect calls; the solid line is the fit. Dots below the diagonal on the Democratic side mean Democrats won by less than projected; gold rings are the races the model called wrong.</p>
+        <p class="lede">Each dot is a called race: the model&rsquo;s final projected margin across, the actual margin up. Dots on the dashed diagonal are perfect calls; the solid line is the fit. Dots below the diagonal on the Democratic side mean Democrats won by less than projected; grey rings are the races the model called wrong.</p>
         <div class="reg-wrap">
           <svg id="res-svg" viewBox="0 0 1000 560" role="img" aria-label="Projected margin versus actual margin for every called race, with the regression line"></svg>
         </div>
@@ -141,7 +143,7 @@
         <div class="duo-foot-grid">
           <div class="df-col">
             <h4>Scoring the model</h4>
-            <p>A race counts as called when AP calls it. The model&rsquo;s projected winner is the party ahead in its final projected margin, frozen before polls opened; a miss is a called race where the other party won. Margins are Democrat minus Republican as a share of all votes counted, so they keep moving until the count is complete, and the average miss and the lean are computed over called races only. In Nebraska the independent, Dan Osborn, stands in for the Democratic side, as the model framed that race. California&rsquo;s same-party races and the uncontested seats have no two-party margin and are scored on the winner alone. In the tooltip, vs. baseline is the margin against the place&rsquo;s usual lean, its average presidential margin from 2008 to 2024, as on the forecast page, and Shift from 2024 is the margin against the 2024 presidential margin alone. The Shift view draws that comparison county by county, from each county&rsquo;s centroid, using the AP count by county and the county&rsquo;s 2024 presidential margin from the same feed; a state or district reported without county counts gets one arrow for the whole race. Outlook fills in each uncalled race with the feed&rsquo;s live estimate of where its count ends up (the win odds and median final margin given the votes counted so far); where no estimate exists it uses the current leader, and before any votes are in, the frozen model. Polls projected is the generic-ballot polling average at face value applied through the seat&rsquo;s elasticity, before the model&rsquo;s mean reversion and other adjustments; the two off-by rows are the result (or the count so far) minus each projection, so D means the race ran more Democratic than projected.</p>
+            <p>A race counts as called when AP calls it. The model&rsquo;s projected winner is the party ahead in its final projected margin, frozen before polls opened; a miss is a called race where the other party won. Margins are Democrat minus Republican as a share of all votes counted, so they keep moving until the count is complete, and the average miss and the lean are computed over called races only. In Nebraska the independent, Dan Osborn, stands in for the Democratic side, as the model framed that race. California&rsquo;s same-party races and the uncontested seats have no two-party margin and are scored on the winner alone. In the tooltip, vs. baseline is the margin against the place&rsquo;s usual lean, its average presidential margin from 2008 to 2024, as on the forecast page, and Shift from 2024 is the margin against the 2024 presidential margin alone. The Shift view draws that comparison county by county, from each county&rsquo;s centroid, using the AP count by county and the county&rsquo;s 2024 presidential margin from the same feed; a state or district reported without county counts gets one arrow for the whole race. Outlook fills in each uncalled race with the feed&rsquo;s live estimate of where its count ends up (the win odds and median final margin given the votes counted so far); where no estimate exists it uses the current leader, and before any votes are in, the frozen model. Baseline colors each race by its margin minus the place&rsquo;s baseline, the 2008 to 2024 presidential average, so blue is a result running more Democratic than usual and red more Republican, whatever the winner. Redrawn shows the districts in the ten states that adopted new congressional maps for 2026 (Alabama, California, Florida, Louisiana, Missouri, North Carolina, Ohio, Tennessee, Texas and Utah, whether by mid-decade redistricting or court order) in full color, with every other district faded. Polls projected is the generic-ballot polling average at face value applied through the seat&rsquo;s elasticity, before the model&rsquo;s mean reversion and other adjustments; the two off-by rows are the result (or the count so far) minus each projection, so D means the race ran more Democratic than projected.</p>
           </div>
           <div class="df-col">
             <h4>Forecast vs. result</h4>

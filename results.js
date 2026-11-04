@@ -24,7 +24,7 @@
   const css = getComputedStyle(document.documentElement);
   const C = (n) => css.getPropertyValue(n).trim();
   const cDem = C("--dem") || "#2e74d0", cGop = C("--gop") || "#e24b38", cInk = C("--ink") || "#0f1115",
-        cFaint = C("--ink-faint") || "#9aa0a8", cLine = C("--line") || "#e6e7e9", cGold = C("--gold") || "#b8902f",
+        cFaint = C("--ink-faint") || "#9aa0a8", cLine = C("--line") || "#e6e7e9", cGold = C("--gold") || "#b8902f", cMiss = "#c3c7cd",
         fSans = C("--sans") || "sans-serif";
   const colorStops = [[-40, "#b62d2d"], [-22, "#d43d34"], [-9, "#ec5a44"], [-2, "#f6c4bb"], [0, "#f4f2f2"], [2, "#a9c9f2"], [9, "#2e74d0"], [22, "#0d52bd"], [40, "#08306b"]];
   const colorScale = d3.scaleLinear().domain(colorStops.map(s => s[0])).range(colorStops.map(s => s[1])).interpolate(d3.interpolateRgb).clamp(true);
@@ -56,6 +56,9 @@
   const senUp = {}; (meta.senate || []).forEach(rc => senUp[rc.st] = rc);
 
   let chamber = "house", view = "results";
+  const REDRAWN = new Set(Object.values(forecast).filter(f => f.real).map(f => f.state));
+  const REDRAWN_LIST = [...REDRAWN].sort().join(", ");
+  const isRedrawn = code => REDRAWN.has(code.slice(0, 2));
 
   /* ---- scoring ----------------------------------------------------------- */
   function fmtMargin(m) { const v = Math.abs(m); return `${m >= 0 ? "D" : "R"}+${v < 0.05 ? "0.0" : v.toFixed(1)}`; }
@@ -140,6 +143,16 @@
 
   /* ---- colors ------------------------------------------------------------ */
   function fillFor(ch, code) {
+    if (view === "redrawn" && ch === "house") { const base = resultFill(ch, code); return isRedrawn(code) ? base : fade(base, 0.82); }
+    if (view === "baseline") {
+      const s = score(ch, code), r = s.r, b = baselineOf(ch, code);
+      if (typeof r.margin !== "number" || b === null) return r.status === "none" ? NONE : "#f4f5f7";
+      const col = colorScale(r.margin - b);
+      return s.called ? col : fade(col, 0.45);
+    }
+    return resultFill(ch, code);
+  }
+  function resultFill(ch, code) {
     const s = score(ch, code), r = s.r;
     if (view === "misses") {
       if (!s.called) return LIGHT;
@@ -221,7 +234,8 @@
       call = `<div class="t-row t-win"><span>Model call</span><b>${projName(p, s.projParty, r)} favored, ${Math.round((s.projParty === "D" ? p.demProb : 1 - p.demProb) * 100)}%</b></div>`;
     }
     const held = (ch === "senate" && senUp[code]) ? `<div class="t-row"><span>Held by</span><b>${senUp[code].held === "D" ? "Democrat" : "Republican"}</b></div>` : "";
-    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${vsBase}${shiftRow}${held}${outlook}${model}${call}`;
+    const redrawnNote = (ch === "house" && isRedrawn(code)) ? `<div class="t-soft t-sub t-left">district lines redrawn for 2026</div>` : "";
+    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${redrawnNote}${rows}${bar}${margin}${vsBase}${shiftRow}${held}${outlook}${model}${call}`;
   }
   function moveTip(evt) {
     const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -302,6 +316,7 @@
     if (chamber === "senate") { (animate ? senatePaths.transition().duration(400) : senatePaths).attr("fill", d => senFill(d.id)); }
     else { (animate ? paths.transition().duration(400) : paths).attr("fill", d => fillFor("house", codeOf(d.id))); }
     paths.classed("missed", d => view === "misses" && score("house", codeOf(d.id)).correct === false);
+    paths.classed("redrawn-on", d => view === "redrawn" && isRedrawn(codeOf(d.id)));
     senatePaths.classed("missed", d => view === "misses" && senUp[d.id] && score("senate", d.id).correct === false);
     renderShift();
   }
@@ -356,9 +371,23 @@
   function renderLegend() {
     const el = document.getElementById("legend-chips"); if (!el) return;
     const chip = (style, label) => `<span class="chip"><i style="${style}"></i>${label}</span>`;
+    const ends = document.getElementById("legend-ends");
+    if (ends) ends.innerHTML = view === "baseline" ? "<span>R +30 vs. baseline</span><span>At baseline</span><span>D +30 vs. baseline</span>" : "<span>R +30</span><span>Even</span><span>D +30</span>";
+    if (view === "baseline") {
+      el.innerHTML = chip(`background:${colorScale(-18)}`, "Running more Republican than the baseline") + chip(`background:${colorScale(18)}`, "Running more Democratic than the baseline") + chip(`background:${fade(colorScale(18), .45)}`, "Not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "") +
+        `<span class="chip chip-note">margin so far minus the ${chamber === "senate" ? "state" : "district"}&rsquo;s 2008 to 2024 presidential average, whoever is winning</span>`;
+      return;
+    }
     const arrow = (col, dir) => `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="${dir > 0 ? "M2,12L19,3M13,2L19,3L18,9" : "M20,12L3,3M9,2L3,3L4,9"}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     if (view === "shift") {
       el.innerHTML = `<span class="chip">${arrow(cDem, 1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, -1)}Shift toward Republicans</span><span class="chip chip-note">one arrow per county, from the county&rsquo;s 2024 presidential margin; longer arrows are bigger shifts, faint ones have little of the vote counted</span>`;
+      return;
+    }
+    if (view === "redrawn") {
+      if (chamber === "senate") { el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + `<span class="chip chip-note">Redrawn applies to the House map; no Senate seat changed shape</span>`; return; }
+      let d = 0, r = 0, u = 0; racesFor("house").forEach(code => { if (!isRedrawn(code)) return; const sc = score("house", code); if (!sc.called) u++; else if (sc.actualSide === "D") d++; else r++; });
+      el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + chip(`background:${fade(cGop, .82)}`, "Not redrawn") +
+        `<span class="chip chip-note">full color: the ${d + r + u} districts in the ${REDRAWN.size} states with new maps for 2026 (${REDRAWN_LIST}); so far ${d} D, ${r} R called, ${u} uncalled</span>`;
       return;
     }
     if (view === "outlook") {
@@ -366,7 +395,7 @@
       return;
     }
     el.innerHTML = view === "misses"
-      ? chip(`background:${cGop};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Republican won") + chip(`background:${cDem};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Democrat won") + chip(`background:${fade(cDem, .8)}`, "Model correct") + chip(`background:${LIGHT}`, "Not yet called")
+      ? chip(`background:${cGop};box-shadow:0 0 0 2px ${cMiss} inset`, "Model missed, Republican won") + chip(`background:${cDem};box-shadow:0 0 0 2px ${cMiss} inset`, "Model missed, Democrat won") + chip(`background:${fade(cDem, .8)}`, "Model correct") + chip(`background:${LIGHT}`, "Not yet called")
       : chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");
   }
 
@@ -439,7 +468,7 @@
     pts.forEach(p => {
       const col = p.side === "D" ? cDem : cGop, cx = X(p.x), cy = Y(p.y);
       s += p.miss
-        ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="7" fill="${col}" stroke="${cGold}" stroke-width="2.6"/>`
+        ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="7" fill="${col}" stroke="${cMiss}" stroke-width="2.6"/>`
         : `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5.5" fill="${col}" fill-opacity="0.85" stroke="#fff" stroke-width="1"/>`;
       regPts.push({ cx, cy, code: p.code });
     });
