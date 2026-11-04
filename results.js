@@ -111,7 +111,7 @@
       if (typeof r.margin === "number") return colorScale(r.margin);
       return s.actualSide === "D" ? colorScale(30) : s.actualSide === "R" ? colorScale(-30) : cFaint;
     }
-    if (r.status === "counting") return COUNTING;   // still counting: grey until AP calls it
+    if (r.status === "counting") return (typeof r.margin === "number") ? fade(colorScale(r.margin), 0.55) : COUNTING;   // leading, not called: a lighter lean color
     return NONE;
   }
   function senFill(st) { return senUp[st] ? fillFor("senate", st) : LIGHT; }
@@ -230,7 +230,7 @@
     const chip = (style, label) => `<span class="chip"><i style="${style}"></i>${label}</span>`;
     el.innerHTML = view === "misses"
       ? chip(`background:${cGop};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Republican won") + chip(`background:${cDem};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Democrat won") + chip(`background:${fade(cDem, .8)}`, "Model correct") + chip(`background:${LIGHT}`, "Not yet called")
-      : chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${COUNTING}`, "Counting, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");
+      : chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");
   }
 
   /* ---- where the model missed ------------------------------------------- */
