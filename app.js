@@ -105,6 +105,10 @@
     };
   }
 
+  // the seat under the polls at face value: the generic-ballot average applied through the seat's
+  // elasticity, with no mean reversion, polling-bias correction, fundamentals, mail-in or fundraising adjustment
+  function pollMargin(d) { return d.margin + elastOf(d) * (genericBallot - ANCHOR); }
+
   // tipping-point district for the active environment (recomputed on change)
   function computeTipping() {
     const ranked = Object.values(forecast)
@@ -192,6 +196,7 @@
     return base + elastOf(rc) * natShift(SEN_MU0) + mailShock(st) + econShock(st);
   }
   function senProb(m) { return Math.max(0.002, Math.min(0.998, normCdf(m / SEN_KSD))); }
+  function senPollMargin(st) { const rc = senByState[st]; return rc ? SEN_KSD * probit(rc.p) + elastOf(rc) * (genericBallot - SEN_MU0) : null; }
   const SEN_NOTUP = meta.senateNotUp || {};        // { ST: 'D' | 'R' | 'split' } for the 15 states not on the ballot
   const SEN_NOTUP_LEAN = meta.senateNotUpLean || {}; // composite lean (Senate + governor + legislature), coloring only
   function senColor(st) {
@@ -267,7 +272,7 @@
        <div class="t-row"><span>Elasticity</span><b>${elastOf(f).toFixed(2)}&times;</b></div>
         ${baselineRows((HIST.district || {})[f.code], e.margin, f.cand, "district")}
       </div><div class="t-col">
-       ${raceTrendSpark(e.margin, elastOf(f))}
+       ${raceTrendSpark(pollMargin(f), elastOf(f))}
        ${histSpark((HIST.district || {})[f.code], e.margin, "district")}
       </div></div>
        ${winnerRow(f.cand, e.margin, e.demProb)}`;
@@ -303,7 +308,7 @@
         <div class="t-row"><span>Elasticity</span><b>${elastOf(rc).toFixed(2)}&times;</b></div>
         ${baselineRows((HIST.state || {})[st], m, rc.cand, "state")}
       </div><div class="t-col">
-        ${raceTrendSpark(m, elastOf(rc))}
+        ${raceTrendSpark(senPollMargin(st), elastOf(rc))}
         ${histSpark((HIST.state || {})[st], m, "state")}
       </div></div>
         ${winnerRow(rc.cand, m, senProb(m))}`;
@@ -449,11 +454,13 @@
   }
   let pollSpark = null;
   let POLL_SMOOTH = [];
-  // race trend: the seat's implied two-party shares over the polling window, moving with the
-  // weighted generic-ballot average through the seat's elasticity (same look as the top sparkline)
-  function raceTrendSpark(marginNow, e) {
-    const sm = POLL_SMOOTH; if (!sm || sm.length < 3) return "";
-    const pts = sm.map(p => { const m = marginNow + e * ((p.d - p.r) - genericBallot); return { t: p.t, d: 50 + m / 2, r: 50 - m / 2 }; });
+  // race trend: the seat's implied two-party shares under the polls at face value over the polling
+  // window, moving with the weighted generic-ballot average through the seat's elasticity and ending
+  // at the current generic-ballot average (same look as the top sparkline)
+  function raceTrendSpark(pollNow, e) {
+    const sm = POLL_SMOOTH; if (!sm || sm.length < 3 || pollNow == null) return "";
+    const gbLast = sm[sm.length - 1].d - sm[sm.length - 1].r;
+    const pts = sm.map(p => { const m = pollNow + e * ((p.d - p.r) - gbLast); return { t: p.t, d: 50 + m / 2, r: 50 - m / 2 }; });
     const W = 176, H = 42, pl = 3, pr = 5, pt = 5, pb = 5;
     const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
     let lo = Infinity, hi = -Infinity; for (const q of pts) { lo = Math.min(lo, q.d, q.r); hi = Math.max(hi, q.d, q.r); }
@@ -474,6 +481,7 @@
         <circle cx="${x(last.t).toFixed(1)}" cy="${y(last.r).toFixed(1)}" r="2" fill="var(--gop)"/>
       </svg>
       <div class="t-spark-x"><span>${fmtD(t0)}</span><span>${fmtD(t1)}</span></div>
+      <div class="t-spark-v"><span>Polls imply</span><span><b style="color:var(--dem)">D ${last.d.toFixed(1)}%</b> <b style="color:var(--gop)">R ${last.r.toFixed(1)}%</b></span></div>
     </div>`;
   }
   function renderPollSpark() {
@@ -760,7 +768,7 @@
   /* ---- generic-ballot slider (R +10 .. D +10) -------------------------- */
   const gbSlider = document.getElementById("gb-slider");
   if (gbSlider) {
-    gbSlider.min = "-10"; gbSlider.max = "10"; gbSlider.step = "0.1";
+    gbSlider.min = "-20"; gbSlider.max = "20"; gbSlider.step = "0.1";
     gbSlider.value = String(genericBallot);
     gbSlider.addEventListener("input", () => {
       genericBallot = +gbSlider.value;
@@ -931,7 +939,7 @@
       "polling error in Democrats\u2019 favor. The polling sparkline smooths individual generic-ballot polls " +
       "(" + (meta.pollSource || "public polls") + ") with a two-week kernel; the light band is \u00b11 standard deviation of the polls. " +
       "Undecided compares the share choosing neither party in the generic-ballot average with past midterms at the same point (" + ((UH && UH.source) || "") + "). " +
-      "Tooltip trend lines show each place\u2019s presidential margin over time (" + ((DATA.hist && DATA.hist.source) || "") + "), ending in this race\u2019s 2026 projected margin, which updates with the polling and every control. Win probabilities use a logistic function (\u03c3 = " +
+      "Tooltip trend lines show each place\u2019s presidential margin over time (" + ((DATA.hist && DATA.hist.source) || "") + "), ending in this race\u2019s 2026 projected margin, which updates with the polling and every control. The race trend line is the polls at face value: the generic-ballot average applied through the seat\u2019s elasticity, before mean reversion, the polling-bias correction, fundamentals, mail-in or fundraising adjustments, with the two-party shares it implies underneath. Win probabilities use a logistic function (\u03c3 = " +
       SIGMA + " points); the tipping-point district is the 218th ranked by margin. Inputs: generic ballot " +
       fmtGB(genericBallot) + " (" + (meta.gbSource || "n/a") + ", " + (meta.dataUpdated || "n/a") +
       "). Figures are illustrative. Election: Nov. 3, 2026.";
@@ -1328,12 +1336,12 @@
     for (const id in forecast) {
       const f = forecast[id], e = effective(f);
       if (e.party === "D") hd++;
-      house[f.code] = { margin: +e.margin.toFixed(2), demProb: +e.demProb.toFixed(4), state: f.state, cand: f.cand || {} };
+      house[f.code] = { margin: +e.margin.toFixed(2), demProb: +e.demProb.toFixed(4), poll: +pollMargin(f).toFixed(2), state: f.state, cand: f.cand || {} };
     }
     let sd = SEN_NOTUP_D;
     (meta.senate || []).forEach(rc => {
       const m = senMargin(rc.st); if (m >= 0) sd++;
-      senate[rc.st] = { margin: +m.toFixed(2), demProb: +senProb(m).toFixed(4), held: rc.held || null, cand: rc.cand || {} };
+      senate[rc.st] = { margin: +m.toFixed(2), demProb: +senProb(m).toFixed(4), poll: +senPollMargin(rc.st).toFixed(2), held: rc.held || null, cand: rc.cand || {} };
     });
     return {
       asOf: meta.dataUpdated || "", genericBallot, effectiveBallot: +(genericBallot + regAdj() - biasPts).toFixed(2),

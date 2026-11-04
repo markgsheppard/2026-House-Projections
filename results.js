@@ -2,7 +2,7 @@
    2026 Results - live returns scored against the frozen forecast
    Depends on: d3 v7, topojson v3, window.HOUSE_DATA (data.js),
                final-forecast.json (the model's final projection) and
-               results.json (AP calls and counts, refreshed every 10 minutes)
+               results.json (AP calls and counts, refreshed every 2 minutes)
    ========================================================================= */
 (function () {
   "use strict";
@@ -142,7 +142,13 @@
     if (p) {
       const pd = Math.round(p.demProb * 100);
       model += `<div class="t-row"><span>Model projected</span><b>${fmtMargin(p.margin)} &middot; ${p.margin >= 0 ? pd : 100 - pd}% ${p.margin >= 0 ? "D" : "R"}</b></div>`;
-      if (s.errLive !== null) model += `<div class="t-row"><span>Model off by</span><b style="color:${s.errLive >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(s.errLive)}</b></div><div class="t-soft t-sub">${s.called ? "result" : "result so far"} ${Math.abs(s.errLive).toFixed(1)} pts more ${s.errLive >= 0 ? "Democratic" : "Republican"} than projected</div>`;
+      if (s.errLive !== null) model += `<div class="t-row"><span>Model off by</span><b style="color:${s.errLive >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(s.errLive)}</b></div>`;
+      // the polls at face value: the generic-ballot average through the seat's elasticity, before the model's adjustments
+      if (typeof p.poll === "number") {
+        model += `<div class="t-row"><span>Polls projected</span><b>${fmtMargin(p.poll)}</b></div>`;
+        if (typeof r.margin === "number") { const pe = r.margin - p.poll; model += `<div class="t-row"><span>Polls off by</span><b style="color:${pe >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(pe)}</b></div>`; }
+      }
+      if (s.errLive !== null) model += `<div class="t-soft t-sub">off by: ${s.called ? "result" : "count so far"} minus projection; D means more Democratic than projected</div>`;
     }
     let call = "";
     if (p && s.called) {
@@ -339,13 +345,13 @@
   function renderStamps() {
     const upd = RES ? fmtET(RES.updated) : "";
     setText("stamp", RES ? `Updated ${upd}` : "Waiting for results");
-    setText("data-note", RES ? `Results: ${RES.source || "AP via The New York Times"} &middot; refreshed every 10 minutes` : "Results refresh every 10 minutes once counting begins");
+    setText("data-note", RES ? `Results: ${RES.source || "AP via The New York Times"} &middot; refreshed every 2 minutes` : "Results refresh every 2 minutes once counting begins");
     if (FF) setText("model-stamp", `Model frozen ${FF.asOf || ""} &middot; ballot ${fmtGB(FF.genericBallot)}${FF.settings && FF.settings.meanReversion ? ` (${fmtGB(FF.effectiveBallot)} after mean reversion)` : ""}`);
     const foot = document.getElementById("footnote");
     if (foot) foot.textContent = (meta.note || "");
     const tech = document.getElementById("tech-method");
     if (tech) tech.textContent =
-      "Results: AP race calls and vote counts published in The New York Times results feed, pulled by a GitHub Action every ten minutes and committed to the site. " +
+      "Results: AP race calls and vote counts published in The New York Times results feed, pulled by a GitHub Action every two minutes and committed to the site. " +
       "Margins are Democrat minus Republican as a share of all votes counted, so they move while counting continues; a race is scored only once it is called. " +
       "In Nebraska the independent, Dan Osborn, stands in for the Democratic side, as the model framed that race. " +
       "The model's projection is its final run (" + (FF ? FF.asOf : "") + "): generic ballot " + (FF ? fmtGB(FF.genericBallot) : "") +
@@ -381,7 +387,7 @@
     recolor(animate); renderLegend(); renderTopline(); renderReadouts(); renderMisses(); renderReg(); renderStamps();
   }
 
-  /* ---- data loading + ten-minute refresh ---------------------------------- */
+  /* ---- data loading + two-minute refresh ---------------------------------- */
   async function getJSON(name) {
     const r = await fetch(name + "?t=" + Date.now(), { cache: "no-store" });
     if (!r.ok) throw new Error(name + " " + r.status);
@@ -395,6 +401,6 @@
     if (!FF) { try { FF = await getJSON("final-forecast.json"); } catch (e) { console.warn("final-forecast.json missing", e); } }
     renderAll(false);
     await loadResults(true);
-    setInterval(() => loadResults(false), 10 * 60 * 1000);
+    setInterval(() => loadResults(false), 2 * 60 * 1000);
   })();
 })();

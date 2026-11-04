@@ -1,10 +1,12 @@
 name: Election results
 
-# Keeps results.json current on election night. Each run loops for about five
-# and a half hours: pull the AP calls and counts, commit results.json when it
-# changed, sleep ten minutes, repeat. GitHub Pages redeploys on every commit.
-# The cron is only a safety net that restarts the chain if a run ends or dies;
-# the concurrency group queues at most one follow-up run behind the active one.
+# Keeps results.json current on election night and through the count. Each run
+# loops for about five hours: pull the AP calls and counts, commit results.json
+# when it changed, sleep two minutes, repeat. GitHub Pages redeploys on every
+# commit. The cron is only a safety net that restarts the chain if a run ends or
+# dies; the concurrency group queues at most one follow-up run behind the active
+# one. After END_UTC (three days past election night) a run disables this
+# workflow instead of fetching, so the chain stops on its own.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -12,34 +14,59 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: election-results
   cancel-in-progress: false
+
+env:
+  END_UTC: "2026-11-07T04:00:00Z"
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     steps:
+      - name: Stop after the end time
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          now=$(date -u +%s); end=$(date -u -d "$END_UTC" +%s)
+          if [ "$now" -ge "$end" ]; then
+            echo "past $END_UTC: disabling the workflow"
+            gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/results.yml/disable" || echo "could not disable the workflow"
+            echo "stop=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "stop=0" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.stop == '0'
         with:
           fetch-depth: 1
 
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.stop == '0'
         with:
           python-version: "3.12"
 
       - name: Install dependencies
+        if: steps.gate.outputs.stop == '0'
         run: pip install --quiet requests
 
-      - name: Fetch results every 10 minutes
+      - name: Fetch results every 2 minutes
+        if: steps.gate.outputs.stop == '0'
         env:
-          PASSES: 32
+          PASSES: 140
+          SLEEP: 120
         run: |
           git config user.name "results-bot"
           git config user.email "results-bot@users.noreply.github.com"
+          end=$(date -u -d "$END_UTC" +%s)
           for i in $(seq 1 "$PASSES"); do
+            if [ "$(date -u +%s)" -ge "$end" ]; then echo "past $END_UTC, stopping"; break; fi
             echo "== pass $i of $PASSES at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             git pull -q --rebase origin main || echo "pull failed, continuing with the local tree"
             python scripts/fetch_results.py || echo "fetch failed, will retry on the next pass"
@@ -51,5 +78,5 @@ jobs:
               git push -q origin HEAD:main || { git pull -q --rebase origin main && git push -q origin HEAD:main; }
               echo "pushed"
             fi
-            if [ "$i" -lt "$PASSES" ]; then sleep 600; fi
+            if [ "$i" -lt "$PASSES" ]; then sleep "$SLEEP"; fi
           done

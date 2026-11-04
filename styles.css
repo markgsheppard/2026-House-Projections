@@ -475,6 +475,9 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 .tip .t-spark-h span:last-child { color: var(--ink-soft); font-weight: 600; }
 .tip .t-spark svg { display: block; }
 .tip .t-spark-x { display: flex; justify-content: space-between; font-size: 9px; color: #b3b8bf; margin-top: 1px; }
+.tip .t-spark-v { display: flex; justify-content: space-between; gap: 10px; font-size: 10px; color: var(--ink-faint); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tip .t-spark-v b { font-weight: 700; }
+.tip .t-spark-v b + b { margin-left: 6px; }
 .tip { max-width: 260px; }
 .sim-controls { max-width: 100%; }
 .sim-controls .ballot { flex: 1 1 170px; min-width: 170px; }
