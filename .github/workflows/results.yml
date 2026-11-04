@@ -63,13 +63,22 @@ jobs:
           PASSES: 140
           SLEEP: 120
         run: |
+          # never let one bad pass end the run: a failed fetch or push is retried on the next pass
+          set +e
           git config user.name "results-bot"
           git config user.email "results-bot@users.noreply.github.com"
           end=$(date -u -d "$END_UTC" +%s)
+          sync_main() {
+            # bring the local tree up to date; on any trouble, drop local state and take origin/main
+            git pull -q --rebase origin main && return 0
+            echo "pull failed; resetting to origin/main"
+            git rebase --abort >/dev/null 2>&1
+            git fetch -q origin main && git reset -q --hard origin/main
+          }
           for i in $(seq 1 "$PASSES"); do
             if [ "$(date -u +%s)" -ge "$end" ]; then echo "past $END_UTC, stopping"; break; fi
             echo "== pass $i of $PASSES at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-            git pull -q --rebase origin main || echo "pull failed, continuing with the local tree"
+            sync_main
             python scripts/fetch_results.py || echo "fetch failed, will retry on the next pass"
             # county margins for the Shift view: Senate every other pass, House every fifth pass
             args=""
@@ -80,9 +89,15 @@ jobs:
               echo "no change in results.json or county-shift.json"
             else
               git add results.json; [ -f county-shift.json ] && git add county-shift.json
-              git commit -q -m "Results: $(date -u +'%Y-%m-%d %H:%M UTC')"
-              git push -q origin HEAD:main || { git pull -q --rebase origin main && git push -q origin HEAD:main; }
-              echo "pushed"
+              git commit -q -m "Results: $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "nothing to commit"
+              pushed=0
+              for attempt in 1 2 3 4; do
+                if git push -q origin HEAD:main; then pushed=1; break; fi
+                echo "push failed (attempt $attempt); retrying"
+                sleep $((attempt * 15))
+                sync_main
+              done
+              if [ "$pushed" = 1 ]; then echo "pushed"; else echo "could not push this pass; the next pass will try again"; fi
             fi
             if [ "$i" -lt "$PASSES" ]; then sleep "$SLEEP"; fi
           done
