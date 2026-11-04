@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2026 Election Results</title>
+  <meta name="description" content="Live 2026 House and Senate results on a district-level map, scored against the final forecast." />
+
+  <!-- tab icon -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+  <!-- link preview (Open Graph / Twitter) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Mark G. Sheppard" />
+  <meta property="og:title" content="2026 Election Results" />
+  <meta property="og:description" content="Live House and Senate returns on the district map, with every place the forecast was right or wrong." />
+  <meta property="og:url" content="https://markgsheppard.github.io/2026-House-Projections/results.html" />
+  <meta property="og:image" content="https://markgsheppard.github.io/2026-House-Projections/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="2026 Election Results" />
+  <meta name="twitter:description" content="Live House and Senate returns, scored against the forecast." />
+  <meta name="twitter:image" content="https://markgsheppard.github.io/2026-House-Projections/assets/og-image.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="results-page">
+
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="https://www.markgsheppard.com/" target="_blank" rel="noopener">Mark G. Sheppard</a>
+      <nav class="site-nav" aria-label="Pages">
+        <a href="index.html">Forecast</a>
+        <a href="results.html" class="is-on" aria-current="page">Results</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <section class="masthead">
+      <div class="mast-left">
+        <p class="eyebrow"><span class="ch-tab is-on" data-ch="house">U.S. House of Representatives</span><span class="ch-sep"> | </span><span class="ch-tab" data-ch="senate">Senate</span></p>
+        <h1 class="title" id="main-title">2026 House Results</h1>
+        <p class="subtitle"><span id="sub-desc">Live returns for all 435 districts. Hover a district for the count and the model&rsquo;s call.</span> <span class="frozen-inline live" id="stamp">Waiting for results</span></p>
+      </div>
+      <div class="controls">
+        <div class="slider-row readouts">
+          <div class="ballot">
+            <div class="ballot-head"><label class="has-tip" data-tip="called">Called</label><output id="ro-called">&ndash;</output></div>
+            <div class="ro-track"><i id="ro-called-bar"></i></div>
+            <p class="ro-note">races called by AP</p>
+          </div>
+          <div class="ballot">
+            <div class="ballot-head"><label class="has-tip" data-tip="record">Model record</label><output id="ro-record">&ndash;</output></div>
+            <p class="ro-note" id="ro-record-note">no calls yet</p>
+          </div>
+          <div class="ballot">
+            <div class="ballot-head"><label class="has-tip" data-tip="mae">Average miss</label><output id="ro-mae">&ndash;</output></div>
+            <p class="ro-note" id="ro-mae-note">waiting for calls</p>
+          </div>
+          <div class="ballot">
+            <div class="ballot-head"><label class="has-tip" data-tip="bias">Lean of the error</label><output id="ro-bias">&ndash;</output></div>
+            <p class="ro-note" id="ro-bias-note">results vs. projection</p>
+          </div>
+          <div class="ballot bias-card" id="view-ctrl">
+            <div class="ballot-head"><label id="view-lbl" class="has-tip" data-tip="view">View</label></div>
+            <div class="segmented bias-toggle view-toggle" role="group" aria-labelledby="view-lbl">
+              <button type="button" data-view="results" aria-pressed="true">Results</button>
+              <button type="button" data-view="misses" aria-pressed="false">Model misses</button>
+            </div>
+          </div>
+        </div>
+        <p class="ctrl-note">Called is the share of races AP has called. The model record counts called races whose winner matched the frozen projection; the average miss and the lean of the error compare actual margins with projected margins in those races. Switch the view to see every called race the model got wrong.</p>
+      </div>
+    </section>
+
+    <section class="topline">
+      <div class="seat-counts">
+        <div class="seat-side d">
+          <span class="seat-label">Democrats</span>
+          <span class="seat-num" id="dem-seats">0</span>
+        </div>
+        <p class="verdict" id="verdict"></p>
+        <div class="seat-side r">
+          <span class="seat-label">Republicans</span>
+          <span class="seat-num" id="gop-seats">0</span>
+        </div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-track live">
+          <div class="gauge-d" id="gauge-d"></div>
+          <div class="gauge-r" id="gauge-r"></div>
+        </div>
+        <div class="gauge-mid" id="gauge-mid" data-label="218 needed"></div>
+      </div>
+    </section>
+
+    <section class="map-section">
+      <div class="map-stage" id="stage">
+        <svg id="map" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map of U.S. congressional districts shaded by election result"></svg>
+      </div>
+      <div class="legend">
+        <div>
+          <div class="scale"></div>
+          <div class="ends"><span>R +30</span><span>Even</span><span>D +30</span></div>
+        </div>
+        <span id="legend-chips" class="legend-chips"></span>
+      </div>
+      <div class="data-bar">
+        <span class="data-note" id="data-note">Results refresh every 10 minutes once counting begins</span>
+        <span class="data-stamp" id="model-stamp"></span>
+      </div>
+    </section>
+
+    <div class="duo">
+      <section class="battle">
+        <h2 id="miss-title">Where the model missed</h2>
+        <p class="lede">Every called race whose winner was not the model&rsquo;s projected winner, largest miss first. The first line is the result and who won, the second the projection and its odds, and the bar is the size of the miss in points. Hover a tile for the full count.</p>
+        <div class="bg-grid" id="misses"></div>
+      </section>
+
+      <section class="regress">
+        <h2>Forecast vs. result</h2>
+        <p class="lede">Each dot is a called race: the model&rsquo;s final projected margin across, the actual margin up. Dots on the dashed diagonal are perfect calls; the solid line is the fit. Dots below the diagonal on the Democratic side mean Democrats won by less than projected; gold rings are the races the model called wrong.</p>
+        <div class="reg-wrap">
+          <svg id="res-svg" viewBox="0 0 1000 560" role="img" aria-label="Projected margin versus actual margin for every called race, with the regression line"></svg>
+        </div>
+      </section>
+
+      <details class="duo-foot">
+        <summary>Notes &amp; method</summary>
+        <div class="duo-foot-grid">
+          <div class="df-col">
+            <h4>Scoring the model</h4>
+            <p>A race counts as called when AP calls it. The model&rsquo;s projected winner is the party ahead in its final projected margin, frozen before polls opened; a miss is a called race where the other party won. Margins are Democrat minus Republican as a share of all votes counted, so they keep moving until the count is complete, and the average miss and the lean of the error are computed over called races only. In Nebraska the independent, Dan Osborn, stands in for the Democratic side, as the model framed that race. California&rsquo;s same-party races and the uncontested seats have no two-party margin and are scored on the winner alone.</p>
+          </div>
+          <div class="df-col">
+            <h4>Forecast vs. result</h4>
+            <p class="reg-note" id="res-note"></p>
+          </div>
+        </div>
+      </details>
+    </div>
+
+  </main>
+
+  <footer class="site">
+    <div class="wrap foot-grid">
+      <a class="brand foot-brand" href="https://www.markgsheppard.com/" target="_blank" rel="noopener">Mark G. Sheppard</a>
+      <div class="foot-text">
+        <p class="foot-note" id="footnote"></p>
+        <p class="tech-note" id="tech-method"></p>
+        <p class="tech-note" id="tech-libs">Rendering: D3&nbsp;v7 and TopoJSON&nbsp;v3 (CDN). Geometry projected with d3-geo Albers&nbsp;USA. Type: Archivo, Hanken&nbsp;Grotesk &amp; Helvetica. Source files: results.html, styles.css, results.js, data.js, final-forecast.json, results.json; results pipeline: scripts/fetch_results.py on a ten-minute GitHub Action.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="tip" id="tooltip" aria-hidden="true"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+  <script src="data.js"></script>
+  <script src="results.js"></script>
+</body>
+</html>

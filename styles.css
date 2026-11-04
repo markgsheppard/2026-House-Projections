@@ -602,3 +602,52 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 .tip .t-cols .t-row { font-size:12px; gap:10px; }
 .tip .t-cols .t-row b { text-align:right; }
 @media (max-width: 520px) { .tip:has(.t-cols) { width: auto; max-width: 280px; } .tip .t-cols { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- page nav (Forecast | Results) */
+.site-nav { display: flex; gap: 22px; align-items: center; }
+.site-nav a {
+  font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint); text-decoration: none; transition: color .15s var(--ease);
+}
+.site-nav a:hover { color: var(--ink-soft); }
+.site-nav a.is-on { color: var(--ink); }
+
+/* ---------------------------------------------------------------- results page */
+/* readouts sit where the sliders are on the forecast page */
+.results-page .slider-row.readouts { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.3fr); gap: 14px; align-items: start; }
+.readouts output {
+  font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: -.02em;
+  color: #6b7280; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.readouts .ro-sub { font-family: var(--sans); font-weight: 600; font-size: 11px; color: var(--ink-faint); letter-spacing: 0; }
+.ro-track { height: 2px; border-radius: 999px; background: var(--line-2); overflow: hidden; }
+.ro-track i { display: block; height: 100%; width: 0; background: #6b7280; transition: width .6s var(--ease); }
+.ro-note { margin: 5px 0 0; font-size: 10px; color: #b3b8bf; line-height: 1.35; }
+.frozen-inline.live::before { background: var(--dem); box-shadow: 0 0 0 3px rgba(46,116,208,.16); }
+@media (max-width: 860px) { .results-page .slider-row.readouts { gap: 10px; } }
+@media (max-width: 560px) { .results-page .slider-row.readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .results-page #view-ctrl { grid-column: 1 / -1; } }
+
+/* topline: called seats from each side, uncalled seats in the gap */
+.verdict .verdict-sub { font-family: var(--sans); font-weight: 500; font-size: .62em; color: var(--ink-faint); letter-spacing: 0; margin-left: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gauge-track.live { justify-content: space-between; background: #eef0f2; }
+.gauge-track.live .gauge-d, .gauge-track.live .gauge-r { transition: width .6s var(--ease); }
+
+/* map legend chips rendered by results.js; misses get the gold outline */
+.legend-chips { display: inline-flex; gap: 16px; flex-wrap: wrap; }
+.district.missed { stroke: var(--gold); stroke-width: 1.4; }
+.senate-state.missed { stroke: var(--gold); stroke-width: 1.6; }
+.data-note { color: var(--ink-faint); }
+
+/* tooltip extras */
+.tip .t-tag { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+.tip .t-tag.called { color: var(--ink-soft); }
+.tip .t-tag.counting { color: var(--gold); }
+.tip .t-soft { color: var(--ink-faint); font-weight: 500; font-size: 11px; }
+
+/* misses grid */
+.bg-cell.bg-empty { grid-column: 1 / -1; color: var(--ink-soft); font-size: 13px; padding: 18px 16px; justify-content: flex-start; }
+/* the misses grid only takes the height of its tiles, so a short list leaves clean white below */
+.duo #misses { flex: 0 0 auto; grid-auto-rows: auto; }
+.duo #misses .bg-cell { min-height: 92px; }
+.bg-cell.miss .bg-fund { color: var(--ink); }
+.duo .bg-grid.many { grid-template-columns: repeat(4, 1fr); }
