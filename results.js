@@ -57,6 +57,12 @@
   /* ---- scoring ----------------------------------------------------------- */
   function fmtMargin(m) { const v = Math.abs(m); return `${m >= 0 ? "D" : "R"}+${v < 0.05 ? "0.0" : v.toFixed(1)}`; }
   function fmtNum(n) { return (n == null) ? "" : Number(n).toLocaleString("en-US"); }
+  const HIST = DATA.hist || {};
+  function baselineOf(ch, code) {
+    const series = ch === "senate" ? (HIST.state || {})[code] : (HIST.district || {})[code];
+    const v = (series || []).filter(x => typeof x === "number" && isFinite(x));
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  }
   function projFor(ch, code) { if (!FF) return null; return ch === "senate" ? (FF.senate || {})[code] : (FF.house || {})[code]; }
   function resFor(ch, code) { if (!RES) return null; return ch === "senate" ? (RES.senate || {})[code] : (RES.house || {})[code]; }
   // the projected party's candidate: the feed's name (who is actually on the ballot) first, then the forecast's
@@ -138,6 +144,11 @@
     const dp = (tv > 0 && dV != null) ? 100 * dV / tv : 0, rp = (tv > 0 && r.r) ? 100 * r.r.v / tv : 0;
     const bar = tv > 0 ? `<div class="t-bar"><i style="width:${rp}%;background:var(--gop)"></i><i style="width:${100 - dp - rp}%;background:transparent"></i><i style="width:${dp}%;background:var(--dem)"></i></div>` : "";
     const margin = (typeof r.margin === "number") ? `<div class="t-row"><span>${s.called ? "Margin" : "Margin so far"}</span><b>${fmtMargin(r.margin)}</b></div>` : "";
+    // the result against the place's usual lean: the 2008 to 2024 presidential average, as on the forecast page
+    const base = baselineOf(ch, code);
+    const vsBase = (typeof r.margin === "number" && base !== null)
+      ? `<div class="t-row"><span>vs. baseline${s.called ? "" : ", so far"}</span><b style="color:${r.margin - base >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(r.margin - base)}</b></div><div class="t-soft t-sub">${ch === "senate" ? "state" : "district"} baseline ${fmtMargin(base)}, 2008 to 2024 pres. avg.</div>`
+      : "";
     let model = "";
     if (p) {
       const pd = Math.round(p.demProb * 100);
@@ -159,7 +170,7 @@
       call = `<div class="t-row t-win"><span>Model call</span><b>${projName(p, s.projParty, r)} favored, ${Math.round((s.projParty === "D" ? p.demProb : 1 - p.demProb) * 100)}%</b></div>`;
     }
     const held = (ch === "senate" && senUp[code]) ? `<div class="t-row"><span>Held by</span><b>${senUp[code].held === "D" ? "Democrat" : "Republican"}</b></div>` : "";
-    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${held}${model}${call}`;
+    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${vsBase}${held}${model}${call}`;
   }
   function moveTip(evt) {
     const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
