@@ -39,6 +39,7 @@
   const gDist = svg.append("g").attr("class", "districts");
   const gState = svg.append("g").attr("class", "states");
   const gHi = svg.append("g").attr("class", "highlight");
+  const gShift = svg.append("g").attr("class", "shift-arrows").style("pointer-events", "none");
   const codeOf = id => forecast[id].code;
   const paths = gDist.selectAll("path").data(allDistricts, d => d.id).join("path").attr("class", "district").attr("d", path);
   const stateMesh = topojson.mesh(districts, districts.objects.districts, (a, b) => a.properties.st !== b.properties.st);
@@ -62,6 +63,17 @@
     const series = ch === "senate" ? (HIST.state || {})[code] : (HIST.district || {})[code];
     const v = (series || []).filter(x => typeof x === "number" && isFinite(x));
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  }
+  const HY = HIST.years || [2008, 2012, 2016, 2020, 2024];
+  function pres2024(ch, code) {
+    const series = ch === "senate" ? (HIST.state || {})[code] : (HIST.district || {})[code];
+    const i = HY.indexOf(2024), v = series ? series[i < 0 ? series.length - 1 : i] : null;
+    return (typeof v === "number" && isFinite(v)) ? v : null;
+  }
+  // the result (or the count so far) against the 2024 presidential margin: + = moved toward Democrats
+  function shiftOf(ch, code) {
+    const r = resFor(ch, code), b = pres2024(ch, code);
+    return (r && typeof r.margin === "number" && b !== null) ? r.margin - b : null;
   }
   function projFor(ch, code) { if (!FF) return null; return ch === "senate" ? (FF.senate || {})[code] : (FF.house || {})[code]; }
   function resFor(ch, code) { if (!RES) return null; return ch === "senate" ? (RES.senate || {})[code] : (RES.house || {})[code]; }
@@ -113,6 +125,10 @@
       const base = (typeof r.margin === "number") ? colorScale(r.margin) : (s.actualSide === "D" ? cDem : cGop);
       return fade(base, 0.8);
     }
+    if (view === "shift") {
+      if (typeof r.margin !== "number") return s.called ? fade(s.actualSide === "D" ? cDem : cGop, 0.85) : NONE;
+      return fade(colorScale(r.margin), s.called ? 0.78 : 0.88);
+    }
     if (s.called) {
       if (typeof r.margin === "number") return colorScale(r.margin);
       return s.actualSide === "D" ? colorScale(30) : s.actualSide === "R" ? colorScale(-30) : cFaint;
@@ -149,6 +165,8 @@
     const vsBase = (typeof r.margin === "number" && base !== null)
       ? `<div class="t-row"><span>vs. baseline${s.called ? "" : ", so far"}</span><b style="color:${r.margin - base >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(r.margin - base)}</b></div><div class="t-soft t-sub">${ch === "senate" ? "state" : "district"} baseline ${fmtMargin(base)}, 2008 to 2024 pres. avg.</div>`
       : "";
+    const sh = shiftOf(ch, code);
+    const shiftRow = (sh !== null) ? `<div class="t-row"><span>Shift from 2024${s.called ? "" : ", so far"}</span><b style="color:${sh >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(sh)}</b></div>` : "";
     let model = "";
     if (p) {
       const pd = Math.round(p.demProb * 100);
@@ -170,7 +188,7 @@
       call = `<div class="t-row t-win"><span>Model call</span><b>${projName(p, s.projParty, r)} favored, ${Math.round((s.projParty === "D" ? p.demProb : 1 - p.demProb) * 100)}%</b></div>`;
     }
     const held = (ch === "senate" && senUp[code]) ? `<div class="t-row"><span>Held by</span><b>${senUp[code].held === "D" ? "Democrat" : "Republican"}</b></div>` : "";
-    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${vsBase}${held}${model}${call}`;
+    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${vsBase}${shiftRow}${held}${model}${call}`;
   }
   function moveTip(evt) {
     const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -241,10 +259,48 @@
     else { (animate ? paths.transition().duration(400) : paths).attr("fill", d => fillFor("house", codeOf(d.id))); }
     paths.classed("missed", d => view === "misses" && score("house", codeOf(d.id)).correct === false);
     senatePaths.classed("missed", d => view === "misses" && senUp[d.id] && score("senate", d.id).correct === false);
+    renderShift();
+  }
+  // shift arrows, one per district or state: pointing up and to the right for a move toward Democrats,
+  // up and to the left for a move toward Republicans, length by the size of the shift
+  const ARROW = { angle: Math.PI / 6, perPt: 1.0, min: 4, max: 42, head: 4.2 };
+  function arrowPath(cx, cy, shift) {
+    const len = Math.min(ARROW.max, ARROW.min + Math.abs(shift) * ARROW.perPt);
+    const dir = shift >= 0 ? 1 : -1;
+    const ux = dir * Math.cos(ARROW.angle), uy = -Math.sin(ARROW.angle);
+    const x1 = cx + ux * len, y1 = cy + uy * len;
+    const h = ARROW.head, a = Math.PI / 7;
+    const bx = -ux, by = -uy;   // back along the shaft
+    const lx = x1 + h * (bx * Math.cos(a) - by * Math.sin(a)), ly = y1 + h * (bx * Math.sin(a) + by * Math.cos(a));
+    const rx = x1 + h * (bx * Math.cos(-a) - by * Math.sin(-a)), ry = y1 + h * (bx * Math.sin(-a) + by * Math.cos(-a));
+    return `M${cx.toFixed(1)},${cy.toFixed(1)}L${x1.toFixed(1)},${y1.toFixed(1)}M${lx.toFixed(1)},${ly.toFixed(1)}L${x1.toFixed(1)},${y1.toFixed(1)}L${rx.toFixed(1)},${ry.toFixed(1)}`;
+  }
+  function renderShift() {
+    gShift.selectAll("*").remove();
+    if (view !== "shift") return;
+    const items = [];
+    if (chamber === "senate") {
+      stateFeatures.forEach(f => { if (!senUp[f.id]) return; const sh = shiftOf("senate", f.id); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, called: score("senate", f.id).called, big: true }); });
+    } else {
+      allDistricts.forEach(f => { const code = codeOf(f.id), sh = shiftOf("house", code); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, called: score("house", code).called, big: false }); });
+    }
+    gShift.selectAll("path").data(items).join("path")
+      .attr("d", d => arrowPath(d.c[0], d.c[1], d.sh))
+      .attr("fill", "none")
+      .attr("stroke", d => d.sh >= 0 ? cDem : cGop)
+      .attr("stroke-width", d => d.big ? 2.4 : 1.6)
+      .attr("stroke-linecap", "round").attr("stroke-linejoin", "round")
+      .attr("opacity", d => d.called ? 0.95 : 0.6)
+      .attr("paint-order", "stroke");
   }
   function renderLegend() {
     const el = document.getElementById("legend-chips"); if (!el) return;
     const chip = (style, label) => `<span class="chip"><i style="${style}"></i>${label}</span>`;
+    const arrow = (col, dir) => `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="${dir > 0 ? "M2,12L19,3M13,2L19,3L18,9" : "M20,12L3,3M9,2L3,3L4,9"}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    if (view === "shift") {
+      el.innerHTML = `<span class="chip">${arrow(cDem, 1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, -1)}Shift toward Republicans</span><span class="chip chip-note">from the 2024 presidential margin; longer arrows are bigger shifts, faint ones are still counting</span>`;
+      return;
+    }
     el.innerHTML = view === "misses"
       ? chip(`background:${cGop};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Republican won") + chip(`background:${cDem};box-shadow:0 0 0 2px ${cGold} inset`, "Model missed, Democrat won") + chip(`background:${fade(cDem, .8)}`, "Model correct") + chip(`background:${LIGHT}`, "Not yet called")
       : chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .55)}`, "Leading, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");

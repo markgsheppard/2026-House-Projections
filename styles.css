@@ -637,6 +637,9 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 
 /* map legend chips rendered by results.js; misses get the gold outline */
 .legend-chips { display: inline-flex; gap: 16px; flex-wrap: wrap; }
+.legend .chip svg { flex: 0 0 auto; }
+.legend .chip.chip-note { color: var(--ink-faint); font-size: 11.5px; }
+.shift-arrows path { pointer-events: none; }
 .district.missed { stroke: var(--gold); stroke-width: 1.4; }
 .senate-state.missed { stroke: var(--gold); stroke-width: 1.6; }
 .data-note { color: var(--ink-faint); }
