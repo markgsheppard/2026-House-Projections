@@ -101,6 +101,9 @@ def parse_race(race, chamber):
     for p, key in (("D", "d"), ("R", "r"), ("I", "i")):
         if p in best:
             rec[key] = {"name": best[p][1], "v": best[p][0]}
+    est = trend_estimate(tru, cmeta, best)
+    if est:
+        rec["est"] = est
     if other:
         rec["o"] = other
     # margin in points of the total vote: Democrat minus Republican; the independent
@@ -113,6 +116,36 @@ def parse_race(race, chamber):
     else:
         rec["margin"] = None
     return code, rec
+
+
+def trend_estimate(tru, cmeta, best):
+    """The feed's live estimate of where an uncalled race ends up, given the count so far:
+    win probability for each side and the median projected final margin (D minus R).
+    Used by the results page's Outlook view; the independent stands in for a missing Democrat."""
+    win, share = {}, {}
+    for c in tru.get("candidates") or []:
+        e = c.get("nyt_model_estimates") or {}
+        wp, q = e.get("win_probability"), e.get("voteshare_quantile")
+        if not isinstance(wp, (int, float)):
+            continue
+        p = party_of(cmeta.get(c.get("nyt_id"), {}))
+        if p not in ("D", "R", "I"):
+            continue
+        # keep the side's strongest candidate (the one the count puts ahead)
+        if p in best and best[p][2] != c.get("nyt_id"):
+            continue
+        win[p] = wp
+        if isinstance(q, list) and len(q) >= 3 and isinstance(q[2], (int, float)):
+            share[p] = q[2]
+    if not win:
+        return None
+    dkey = "D" if "D" in win else ("I" if "I" in win else None)
+    if dkey is None or "R" not in win:
+        return None
+    est = {"d": round(win[dkey], 3), "r": round(win["R"], 3)}
+    if dkey in share and "R" in share:
+        est["m"] = round((share[dkey] - share["R"]) * 100, 2)
+    return est
 
 
 def apply_manual(results):

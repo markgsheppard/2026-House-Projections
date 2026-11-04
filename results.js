@@ -101,6 +101,26 @@
     return { code, p, r, projParty, actualSide, called, correct, err, errLive, lead,
              winnerName: actualSide === "D" ? ((r.d && r.d.name) || (r.i && r.i.name) || "Democrat") : actualSide === "R" ? ((r.r && r.r.name) || "Republican") : ((r.i && r.i.name) || "Independent") };
   }
+  // outlook: where a race lands if the count keeps going the way it is going. Called races are
+  // settled; otherwise the feed's live estimate (win odds and median final margin from the votes
+  // counted so far), then the current leader, then the frozen model as a last resort.
+  function outlookOf(ch, code) {
+    const s = score(ch, code), r = s.r, p = s.p;
+    if (s.called) return { party: s.actualSide, prob: 1, basis: "called", margin: (typeof r.margin === "number") ? r.margin : null };
+    const e = r.est;
+    if (e && typeof e.d === "number" && typeof e.r === "number") {
+      const dem = e.d >= e.r;
+      return { party: dem ? "D" : "R", prob: dem ? e.d : e.r, basis: "trend", margin: (typeof e.m === "number") ? e.m : null };
+    }
+    if (typeof r.margin === "number" && r.tv > 0) return { party: r.margin >= 0 ? "D" : "R", prob: null, basis: "lead", margin: r.margin };
+    if (p) return { party: s.projParty, prob: s.projParty === "D" ? p.demProb : 1 - p.demProb, basis: "model", margin: p.margin };
+    return { party: null, prob: null, basis: "none", margin: null };
+  }
+  function outlookCounts(ch) {
+    const o = { d: 0, r: 0, i: 0, trend: 0, lead: 0, model: 0 };
+    racesFor(ch).forEach(code => { const k = outlookOf(ch, code); if (k.party === "D") o.d++; else if (k.party === "R") o.r++; else if (k.party === "I") o.i++; if (k.basis in o) o[k.basis]++; });
+    return o;
+  }
   function racesFor(ch) {
     return ch === "senate" ? (meta.senate || []).map(rc => rc.st) : Object.keys(forecast).map(codeOf);
   }
@@ -128,6 +148,12 @@
       return fade(base, 0.8);
     }
     if (view === "shift") return (r.status === "none") ? NONE : "#f4f5f7";
+    if (view === "outlook" && !s.called) {
+      const k = outlookOf(ch, code);
+      if (!k.party || k.party === "I") return NONE;
+      const m = (typeof k.margin === "number") ? k.margin : (k.party === "D" ? 12 : -12);
+      return fade(colorScale(k.party === "D" ? Math.max(m, 2) : Math.min(m, -2)), 0.5);
+    }
     if (s.called) {
       if (typeof r.margin === "number") return colorScale(r.margin);
       return s.actualSide === "D" ? colorScale(30) : s.actualSide === "R" ? colorScale(-30) : cFaint;
@@ -164,6 +190,14 @@
     const vsBase = (typeof r.margin === "number" && base !== null)
       ? `<div class="t-row"><span>vs. baseline${s.called ? "" : ", so far"}</span><b style="color:${r.margin - base >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(r.margin - base)}</b></div><div class="t-soft t-sub">${ch === "senate" ? "state" : "district"} baseline ${fmtMargin(base)}, 2008 to 2024 pres. avg.</div>`
       : "";
+    let outlook = "";
+    if (!s.called) {
+      const k = outlookOf(ch, code);
+      const who = k.party === "D" ? ((r.d && r.d.name) || (r.i && r.i.name) || projName(p, "D", r)) : k.party === "R" ? ((r.r && r.r.name) || projName(p, "R", r)) : null;
+      if (who && k.basis === "trend") outlook = `<div class="t-row"><span>Outlook</span><b style="color:${k.party === "D" ? "var(--dem)" : "var(--gop)"}">${who} ${Math.round(k.prob * 100)}%${typeof k.margin === "number" ? ` &middot; ${fmtMargin(k.margin)}` : ""}</b></div><div class="t-soft t-sub">live estimate from the votes counted so far</div>`;
+      else if (who && k.basis === "lead") outlook = `<div class="t-row"><span>Outlook</span><b style="color:${k.party === "D" ? "var(--dem)" : "var(--gop)"}">${who} leads the count</b></div>`;
+      else if (who && k.basis === "model") outlook = `<div class="t-row"><span>Outlook</span><b style="color:${k.party === "D" ? "var(--dem)" : "var(--gop)"}">${who}, no votes yet (model ${Math.round(k.prob * 100)}%)</b></div>`;
+    }
     const sh = shiftOf(ch, code);
     const shiftRow = (sh !== null) ? `<div class="t-row"><span>Shift from 2024${s.called ? "" : ", so far"}</span><b style="color:${sh >= 0 ? "var(--dem)" : "var(--gop)"}">${fmtMargin(sh)}</b></div>` : "";
     let model = "";
@@ -187,7 +221,7 @@
       call = `<div class="t-row t-win"><span>Model call</span><b>${projName(p, s.projParty, r)} favored, ${Math.round((s.projParty === "D" ? p.demProb : 1 - p.demProb) * 100)}%</b></div>`;
     }
     const held = (ch === "senate" && senUp[code]) ? `<div class="t-row"><span>Held by</span><b>${senUp[code].held === "D" ? "Democrat" : "Republican"}</b></div>` : "";
-    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${vsBase}${shiftRow}${held}${model}${call}`;
+    return `<div class="t-head"><div class="t-code">${code}</div>${statusTag(s)}</div>${rows}${bar}${margin}${vsBase}${shiftRow}${held}${outlook}${model}${call}`;
   }
   function moveTip(evt) {
     const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -218,15 +252,26 @@
   const elVerdict = document.getElementById("verdict"), elUncalled = document.getElementById("uncalled");
   function renderTopline() {
     const st = stats(chamber);
+    const outlook = view === "outlook" && RES;
+    const oc = outlook ? outlookCounts(chamber) : null;
     let d, r, total, win, body;
-    if (chamber === "senate") { d = SEN_NOTUP_D + st.d; r = SEN_NOTUP_R + st.r; total = 100; win = SEN_WIN_D; body = "the Senate"; }
-    else { d = st.d; r = st.r; total = 435; win = HOUSE_WIN; body = "the House"; }
+    if (chamber === "senate") { d = SEN_NOTUP_D + (oc ? oc.d : st.d); r = SEN_NOTUP_R + (oc ? oc.r : st.r); total = 100; win = SEN_WIN_D; body = "the Senate"; }
+    else { d = oc ? oc.d : st.d; r = oc ? oc.r : st.r; total = 435; win = HOUSE_WIN; body = "the House"; }
     elDem.textContent = d; elGop.textContent = r;
     elGD.style.width = (100 * d / total) + "%"; elGR.style.width = (100 * r / total) + "%";
     const gm = document.getElementById("gauge-mid");
     if (gm) gm.dataset.label = (chamber === "senate") ? SEN_WIN_D + " needed" : HOUSE_WIN + " needed";
     let v;
     if (!RES) v = `Waiting for results`;
+    else if (outlook) {
+      const lead = d >= r ? "D" : "R";
+      v = `<span class="${lead === "D" ? "lead-d" : "lead-r"}">${lead === "D" ? "Democrats" : "Republicans"}</span> on track for ${Math.max(d, r)}`;
+      const ind = oc.i ? `, ${oc.i} independent` : "";
+      const tail = ` <span class="verdict-sub">${st.called.length} called${ind} &middot; ${st.uncalled} projected from the count</span>`;
+      elVerdict.innerHTML = v + tail;
+      if (elUncalled) elUncalled.innerHTML = "";
+      return;
+    }
     else if (d >= win) v = `<span class="lead-d">Democrats</span> win ${body}`;
     else if (chamber === "senate" ? r >= 50 : r >= win) v = `<span class="lead-r">Republicans</span> ${chamber === "senate" ? "keep" : "win"} ${body}`;
     else if (d === r) v = `Tied ${d} to ${r}, ${st.uncalled} ${chamber === "senate" ? "races" : "seats"} uncalled`;
@@ -249,7 +294,7 @@
     setText("ro-mae", st.mae !== null ? `${st.mae.toFixed(1)} <span class="ro-sub">pts</span>` : "&ndash;");
     setText("ro-mae-note", st.mae !== null ? `average miss, ${st.withErr.length} races` : "waiting for calls");
     setText("ro-bias", st.bias !== null ? fmtMargin(st.bias) : "&ndash;");
-    setText("ro-bias-note", st.bias !== null ? `results ran ${Math.abs(st.bias).toFixed(1)} pts more ${st.bias >= 0 ? "Democratic" : "Republican"} than projected` : "lean of the error");
+    setText("ro-bias-note", st.bias !== null ? `results ran ${Math.abs(st.bias).toFixed(1)} pts more ${st.bias >= 0 ? "Democratic" : "Republican"} than projected` : "results vs. projection");
   }
 
   /* ---- map ------------------------------------------------------------------ */
@@ -314,6 +359,10 @@
     const arrow = (col, dir) => `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="${dir > 0 ? "M2,12L19,3M13,2L19,3L18,9" : "M20,12L3,3M9,2L3,3L4,9"}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     if (view === "shift") {
       el.innerHTML = `<span class="chip">${arrow(cDem, 1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, -1)}Shift toward Republicans</span><span class="chip chip-note">one arrow per county, from the county&rsquo;s 2024 presidential margin; longer arrows are bigger shifts, faint ones have little of the vote counted</span>`;
+      return;
+    }
+    if (view === "outlook") {
+      el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cGop, .5)}`, "Projected Republican, not yet called") + chip(`background:${fade(cDem, .5)}`, "Projected Democrat, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");
       return;
     }
     el.innerHTML = view === "misses"
@@ -462,7 +511,7 @@
     const btn = e.target.closest("button[data-view]"); if (!btn) return;
     view = btn.dataset.view;
     document.querySelectorAll(".view-toggle button").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === view ? "true" : "false"));
-    recolor(true); renderLegend();
+    recolor(true); renderLegend(); renderTopline();
   }));
 
   function renderAll(animate = true) {
