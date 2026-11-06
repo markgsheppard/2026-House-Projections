@@ -37,6 +37,7 @@ BASE = f"https://static01.nyt.com/elections-assets/pages/data/{DATE}/"
 FEEDS = {"senate": BASE + "results-senate.json", "house": BASE + "results-house.json", "governor": BASE + "results-governor.json"}
 UA = {"User-Agent": "2026-House-Projections results bot (github.com/markgsheppard/2026-House-Projections)"}
 IND = {"IND", "NPA", "NP", "UNA", "NOL", "NPP", "UNR", "NPD", "CST"}
+AT_LARGE = {"AK", "DE", "ND", "SD", "VT", "WY"}
 
 
 def fetch(url, timeout=90):
@@ -131,12 +132,34 @@ def reduce_rows(acc_list):
     return rows
 
 
-def race_file(race):
+STATE_SLUG = {"AL": "alabama", "AK": "alaska", "AZ": "arizona", "AR": "arkansas", "CA": "california", "CO": "colorado",
+    "CT": "connecticut", "DE": "delaware", "FL": "florida", "GA": "georgia", "HI": "hawaii", "ID": "idaho", "IL": "illinois",
+    "IN": "indiana", "IA": "iowa", "KS": "kansas", "KY": "kentucky", "LA": "louisiana", "ME": "maine", "MD": "maryland",
+    "MA": "massachusetts", "MI": "michigan", "MN": "minnesota", "MS": "mississippi", "MO": "missouri", "MT": "montana",
+    "NE": "nebraska", "NV": "nevada", "NH": "new-hampshire", "NJ": "new-jersey", "NM": "new-mexico", "NY": "new-york",
+    "NC": "north-carolina", "ND": "north-dakota", "OH": "ohio", "OK": "oklahoma", "OR": "oregon", "PA": "pennsylvania",
+    "RI": "rhode-island", "SC": "south-carolina", "SD": "south-dakota", "TN": "tennessee", "TX": "texas", "UT": "utah",
+    "VT": "vermont", "VA": "virginia", "WA": "washington", "WV": "west-virginia", "WI": "wisconsin", "WY": "wyoming"}
+
+
+def race_file(race, chamber):
+    """The race's own results file. The feed carried a page url for every race on election night
+    and only for the open ones afterwards, so build the name from the race id when it is missing."""
     url = race.get("url") or ""
     name = url.rsplit("/", 1)[-1]
-    if not name.endswith(".html"):
+    if name.endswith(".html"):
+        return BASE + name[:-5] + ".json"
+    parts = race.get("nyt_id", "").split("-")
+    st = STATE_SLUG.get(parts[0])
+    if not st:
         return None
-    return BASE + name[:-5] + ".json"
+    if chamber == "house":
+        if len(parts) < 4 or not parts[3].isdigit():
+            return None
+        return BASE + f"results-{st}-us-house-{'at-large' if parts[0] in AT_LARGE else int(parts[3])}.json"
+    office = "us-senate" if chamber == "senate" else "governor"
+    special = "-special" if "S_W" in race.get("nyt_id", "") else ""
+    return BASE + f"results-{st}-{office}{special}.json"
 
 
 def pull(chamber):
@@ -145,7 +168,7 @@ def pull(chamber):
     for race in feed.get("races") or []:
         if race.get("nyt_id", "").startswith("US-"):
             continue
-        u = race_file(race)
+        u = race_file(race, chamber)
         if u:
             jobs.append((race["nyt_id"].split("-")[0], u))
 
