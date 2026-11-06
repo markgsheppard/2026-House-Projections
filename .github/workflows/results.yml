@@ -6,8 +6,9 @@ name: Election results
 # minutes, repeat, and queue the next run before finishing. GitHub Pages
 # redeploys on every commit. The cron is only a backstop that restarts the chain
 # if a run dies; the concurrency group queues at most one follow-up run behind
-# the active one. After END_UTC (three days past election night) a run disables this
-# workflow instead of fetching, so the chain stops on its own.
+# the active one. After END_UTC a run disables this workflow instead of fetching, so
+# the chain stops on its own; after SLOW_FROM_UTC each pass waits ten minutes rather
+# than two, since by then only the slow late counts are moving.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -22,7 +23,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  END_UTC: "2026-11-07T04:00:00Z"
+  END_UTC: "2026-11-21T05:00:00Z"   # midnight ET at the end of November 20
+  SLOW_FROM_UTC: "2026-11-08T05:00:00Z"   # from November 8 (midnight ET) the loop sleeps ten minutes instead of two
 
 jobs:
   fetch:
@@ -62,6 +64,7 @@ jobs:
         env:
           PASSES: 140
           SLEEP: 120
+          SLOW_SLEEP: 600
         run: |
           # never let one bad pass end the run: a failed fetch or push is retried on the next pass
           set +e
@@ -99,7 +102,9 @@ jobs:
               done
               if [ "$pushed" = 1 ]; then echo "pushed"; else echo "could not push this pass; the next pass will try again"; fi
             fi
-            if [ "$i" -lt "$PASSES" ]; then sleep "$SLEEP"; fi
+            if [ "$i" -lt "$PASSES" ]; then
+              if [ "$(date -u +%s)" -ge "$(date -u -d "$SLOW_FROM_UTC" +%s)" ]; then sleep "$SLOW_SLEEP"; else sleep "$SLEEP"; fi
+            fi
           done
 
       - name: Start the next run
