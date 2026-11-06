@@ -74,9 +74,17 @@ def unit_sides(unit, cmeta):
 
 
 def pres_2024(unit, st):
+    """The unit's 2024 presidential margin; where the feed carries no presidential comparison for a
+    unit (some county parts on new district lines), the unit's 2024 House or Senate margin instead."""
     h = unit.get("historical_comparison_race_data") or {}
     rec = h.get(f"{st}-G-P-2024-11-05")
     if not rec or not isinstance(rec.get("margin"), (int, float)):
+        rec = None
+        for k, v in h.items():
+            if "2024" in k and isinstance(v, dict) and isinstance(v.get("margin"), (int, float)):
+                rec = v
+                break
+    if not rec:
         return None, 0
     w = rec.get("votes")
     if not isinstance(w, (int, float)) or w <= 0:
