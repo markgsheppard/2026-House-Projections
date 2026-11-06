@@ -338,7 +338,7 @@
   function arrowPath(cx, cy, shift, cfg) {
     const A = cfg || ARROW;
     const len = Math.min(A.max, A.min + Math.abs(shift) * A.perPt);
-    const dir = shift >= 0 ? 1 : -1;
+    const dir = shift >= 0 ? -1 : 1;                   // Democratic shift points left, Republican right
     const ux = dir * Math.cos(A.angle), uy = -Math.sin(A.angle);
     const x1 = cx + ux * len, y1 = cy + uy * len;
     const h = A.head, a = Math.PI / 7;
@@ -352,13 +352,16 @@
     gShift.selectAll("*").remove();
     if (view !== "shift") return;
     const items = [];
-    // counties: the AP count by county against the county's 2024 presidential margin
-    const rows = (COUNTY && COUNTY[chamber]) || {};
-    for (const st in rows) {
-      if (chamber === "senate" && !senUp[st]) continue;
-      if (!countyRows(st)) continue;
-      for (const fips in rows[st]) {
-        const r = rows[st][fips], ll = CENT[fips]; if (!ll || !r || !r[3]) continue;
+    // counties, the whole country: the AP count by county against the county's 2024 presidential
+    // margin. The Senate tab uses the Senate race wherever there is one and the House vote elsewhere.
+    const sen = (COUNTY && COUNTY.senate) || {}, hou = (COUNTY && COUNTY.house) || {};
+    const srcFor = st => (chamber === "senate" && senUp[st] && sen[st] && Object.keys(sen[st]).length) ? sen[st] : (hou[st] && Object.keys(hou[st]).length ? hou[st] : null);
+    const covered = new Set();
+    if (CENT) for (const st of new Set([...Object.keys(sen), ...Object.keys(hou)])) {
+      const rows = srcFor(st); if (!rows) continue;
+      covered.add(st);
+      for (const fips in rows) {
+        const r = rows[fips], ll = CENT[fips]; if (!ll || !r || !r[3]) continue;
         const c = projection(ll); if (!c || !isFinite(c[0])) continue;
         const eevp = r[2] || 0;
         items.push({ c, sh: r[0] - r[1], op: eevp < 5 ? 0.2 : 0.3 + 0.6 * Math.min(1, eevp / 90), county: true });
@@ -366,10 +369,9 @@
     }
     // states or districts with no county counts (Alaska, say): one arrow for the whole race
     if (chamber === "senate") {
-      stateFeatures.forEach(f => { if (!senUp[f.id] || countyRows(f.id)) return; const sh = shiftOf("senate", f.id); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, op: score("senate", f.id).called ? 0.9 : 0.5, big: true }); });
-    } else {
-      allDistricts.forEach(f => { const code = codeOf(f.id), st = forecast[f.id].state; if (countyRows(st)) return; const sh = shiftOf("house", code); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, op: score("house", code).called ? 0.9 : 0.5, big: false }); });
+      stateFeatures.forEach(f => { if (!senUp[f.id] || covered.has(f.id)) return; const sh = shiftOf("senate", f.id); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, op: score("senate", f.id).called ? 0.9 : 0.5, big: true }); });
     }
+    allDistricts.forEach(f => { const code = codeOf(f.id), st = forecast[f.id].state; if (covered.has(st) || (chamber === "senate" && senUp[st])) return; const sh = shiftOf("house", code); if (sh === null) return; const c = path.centroid(f); if (!isFinite(c[0])) return; items.push({ c, sh, op: score("house", code).called ? 0.9 : 0.5, big: false }); });
     gShift.selectAll("path").data(items).join("path")
       .attr("d", d => arrowPath(d.c[0], d.c[1], d.sh, d.county ? ARROW_CO : ARROW))
       .attr("fill", "none")
@@ -395,7 +397,7 @@
     }
     const arrow = (col, dir) => `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="${dir > 0 ? "M2,12L19,3M13,2L19,3L18,9" : "M20,12L3,3M9,2L3,3L4,9"}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     if (view === "shift") {
-      el.innerHTML = `<span class="chip">${arrow(cDem, 1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, -1)}Shift toward Republicans</span><span class="chip chip-note">one arrow per county, from the county&rsquo;s 2024 presidential margin; longer arrows are bigger shifts, faint ones have little of the vote counted</span>`;
+      el.innerHTML = `<span class="chip">${arrow(cDem, -1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, 1)}Shift toward Republicans</span><span class="chip chip-note">one arrow per county across the country, from the county&rsquo;s 2024 presidential margin${chamber === "senate" ? "; the Senate race where there is one, the House vote elsewhere" : ""}; longer arrows are bigger shifts, faint ones have little of the vote counted</span>`;
       return;
     }
     if (view === "redrawn") {
