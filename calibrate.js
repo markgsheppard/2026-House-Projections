@@ -54,11 +54,11 @@
     { k: "S",    label: "Environment",   min: -10, max: 25,  step: 0.1,  fmt: fmtGB, note: "national Democratic margin applied through each seat's elasticity (the forecast's effective ballot)" },
     { k: "kel",  label: "Elasticity",    min: 0,   max: 2.5, step: 0.01, fmt: v => v.toFixed(2) + "×", note: "multiplier on every seat's elasticity; 1 is the model as run" },
     { k: "mail", label: "Mail-in drag",  min: 0,   max: 6,   step: 0.1,  fmt: v => v.toFixed(1) + " pts", note: "national Democratic drag from restricted mail voting, spread by each state's mail share and skew" },
-    { k: "lvl",  label: "Fundamentals",  min: 0,   max: 300, step: 1,    fmt: v => v + "%", note: "the economy dial: percent of the model's " + ECON_MAX + "-point maximum shock in states whose misery index is above the threshold (the forecast page stops at 100%)" },
+    { k: "shock", label: "Fundamentals", min: 0,  max: 20,  step: 0.1,  fmt: v => v.toFixed(1) + " pts", note: "the economy dial: the shift in the margin, in points, applied to every race in a state whose misery index is above the threshold (the forecast page's maximum is " + ECON_MAX + ")" },
     { k: "thr",  label: "Misery threshold", min: 5, max: 10.5, step: 0.1, fmt: v => v.toFixed(1), note: "misery index (unemployment plus inflation) above which a state takes the shock; the model used " + ECON_THRESH },
     { k: "wf",   label: "Fundraising",   min: 0,   max: 10,  step: 0.05, fmt: v => v.toFixed(2) + "×", note: "multiplier on the capped Q3 fundraising adjustment; 1 is the model as run" },
   ];
-  const FROZEN = { S: 7.72, kel: 1, mail: 0, lvl: 0, thr: ECON_THRESH, wf: 1 };
+  const FROZEN = { S: 7.72, kel: 1, mail: 0, shock: 0, thr: ECON_THRESH, wf: 1 };
   let P = Object.assign({}, FROZEN);
   const locked = {};                       // dial -> true to hold it fixed during a fit
   const spec = { target: "gov", form: "step", fe: false, lam: 8, objective: "robust" };
@@ -101,7 +101,7 @@
     const e = ECON[st]; if (!e) return 0;
     const over = e.m - p.thr; if (over <= 0) return 0;
     const sign = sp.target === "gov" ? (e.g === "D" ? -1 : 1) : sp.target === "pres" ? 1 : -1;
-    return sign * (p.lvl / 100) * ECON_MAX * (sp.form === "step" ? 1 : over);
+    return sign * p.shock * (sp.form === "step" ? 1 : over);
   }
   function rawMargin(row, p, sp) {
     return row.base + p.kel * row.el * (p.S - row.anchor) + mailShock(row.st, p.mail) + econShock(row.st, p, sp) + p.wf * row.fund;
@@ -295,12 +295,12 @@
   function renderProfile(profile) {
     const svg = d3.select("#profile-svg"); svg.selectAll("*").remove();
     const W = 560, H = 300, M = { t: 18, r: 18, b: 34, l: 54 };
-    const d = DIALS.find(d => d.k === "lvl");
-    const pts = []; for (let v = d.min; v <= d.max; v += 5) { const q = Object.assign({}, P, { lvl: v }); pts.push({ v, loss: lossAt(q, spec) }); }
+    const d = DIALS.find(d => d.k === "shock");
+    const pts = []; for (let v = d.min; v <= d.max + 1e-9; v += 0.25) { const q = Object.assign({}, P, { shock: v }); pts.push({ v: +v.toFixed(2), loss: lossAt(q, spec) }); }
     const x = d3.scaleLinear().domain([d.min, d.max]).range([M.l, W - M.r]);
     const ext = d3.extent(pts.concat(profile || []), p => p.loss);
     const y = d3.scaleLinear().domain([ext[0] - (ext[1] - ext[0]) * 0.1, ext[1] + (ext[1] - ext[0]) * 0.1]).range([H - M.b, M.t]).nice();
-    svg.append("g").attr("transform", `translate(0,${H - M.b})`).call(d3.axisBottom(x).ticks(6).tickSize(0).tickFormat(v => v + "%")).call(g => g.select(".domain").attr("stroke", "#d6d8db"));
+    svg.append("g").attr("transform", `translate(0,${H - M.b})`).call(d3.axisBottom(x).ticks(10).tickSize(0).tickFormat(v => v + " pts")).call(g => g.select(".domain").attr("stroke", "#d6d8db"));
     svg.append("g").attr("transform", `translate(${M.l},0)`).call(d3.axisLeft(y).ticks(5).tickSize(-(W - M.l - M.r)).tickFormat(d3.format(spec.objective === "winners" ? ".3f" : ".2f")))
       .call(g => g.select(".domain").remove()).call(g => g.selectAll("line").attr("stroke", "#eceef0"));
     svg.selectAll("text").attr("fill", "#9aa0a8").attr("font-size", 11);
@@ -308,40 +308,40 @@
     if (profile && profile.length) svg.append("path").datum(profile).attr("d", line).attr("fill", "none").attr("stroke", "#0d52bd").attr("stroke-width", 2).attr("stroke-dasharray", "5 4");
     svg.append("path").datum(pts).attr("d", line).attr("fill", "none").attr("stroke", "#2e74d0").attr("stroke-width", 2.2);
     const bestPt = pts.reduce((a, b) => b.loss < a.loss ? b : a);
-    svg.append("line").attr("x1", x(100)).attr("x2", x(100)).attr("y1", M.t).attr("y2", H - M.b).attr("stroke", "#c9ccd1").attr("stroke-dasharray", "3 4");
-    svg.append("text").attr("x", x(100) + 5).attr("y", M.t + 12).attr("fill", "#9aa0a8").attr("font-size", 11).text("forecast page's limit");
-    svg.append("circle").attr("cx", x(P.lvl)).attr("cy", y(lossAt(P, spec))).attr("r", 5).attr("fill", "#fff").attr("stroke", "#2e74d0").attr("stroke-width", 2);
+    svg.append("line").attr("x1", x(ECON_MAX)).attr("x2", x(ECON_MAX)).attr("y1", M.t).attr("y2", H - M.b).attr("stroke", "#c9ccd1").attr("stroke-dasharray", "3 4");
+    svg.append("text").attr("x", x(ECON_MAX) + 5).attr("y", M.t + 12).attr("fill", "#9aa0a8").attr("font-size", 11).text("forecast page's limit");
+    svg.append("circle").attr("cx", x(P.shock)).attr("cy", y(lossAt(P, spec))).attr("r", 5).attr("fill", "#fff").attr("stroke", "#2e74d0").attr("stroke-width", 2);
     svg.append("circle").attr("cx", x(bestPt.v)).attr("cy", y(bestPt.loss)).attr("r", 3.5).attr("fill", "#2e74d0");
-    svg.append("text").attr("x", x(bestPt.v)).attr("y", y(bestPt.loss) - 10).attr("text-anchor", "middle").attr("fill", "#2e74d0").attr("font-size", 11).attr("font-weight", 700).text(`best ${bestPt.v}% (others held)`);
+    svg.append("text").attr("x", x(bestPt.v)).attr("y", y(bestPt.loss) - 10).attr("text-anchor", "middle").attr("fill", "#2e74d0").attr("font-size", 11).attr("font-weight", 700).text(`best ${bestPt.v.toFixed(2)} pts (others held)`);
     $("profile-note").textContent = profile && profile.length
-      ? `Solid: the loss as only the Fundamentals dial moves, everything else at its current setting. Dashed: the other dials refit at each level, which is the dial's real profile.`
-      : `The loss as only the Fundamentals dial moves, everything else at its current setting. Refit the other dials at each level for the dial's real profile.`;
+      ? `Solid: the loss as only the Fundamentals dial moves, everything else at its current setting. Dashed: the other dials (threshold aside) refit at each size of the shock, which is the dial's real profile.`
+      : `The loss as only the Fundamentals dial moves, everything else at its current setting. Refit the other dials at each size of the shock for the dial's real profile.`;
   }
 
   /* level x threshold heatmap */
   function renderHeat() {
     const svg = d3.select("#heat-svg"); svg.selectAll("*").remove();
     const W = 560, H = 300, M = { t: 18, r: 18, b: 34, l: 54 };
-    const lv = d3.range(0, 301, 25), th = d3.range(5, 10.51, 0.5);
-    const cells = []; lv.forEach(l => th.forEach(t => cells.push({ l, t, loss: lossAt(Object.assign({}, P, { lvl: l, thr: t }), spec) })));
+    const lv = d3.range(0, 20.01, 2), th = d3.range(5, 10.51, 0.5);
+    const cells = []; lv.forEach(l => th.forEach(t => cells.push({ l, t, loss: lossAt(Object.assign({}, P, { shock: l, thr: t }), spec) })));
     const x = d3.scaleBand().domain(lv).range([M.l, W - M.r]).paddingInner(0.08), y = d3.scaleBand().domain(th).range([H - M.b, M.t]).paddingInner(0.08);
     const ext = d3.extent(cells, c => c.loss);
     const col = d3.scaleSequential(d3.interpolateRgb("#0d52bd", "#eef3fb")).domain(ext);
     svg.selectAll("rect").data(cells).join("rect").attr("x", c => x(c.l)).attr("y", c => y(c.t)).attr("width", x.bandwidth()).attr("height", y.bandwidth()).attr("rx", 2).attr("fill", c => col(c.loss))
-      .append("title").text(c => `Fundamentals ${c.l}%, threshold ${c.t.toFixed(1)}: ${c.loss.toFixed(3)}`);
+      .append("title").text(c => `Fundamentals ${c.l} pts, threshold ${c.t.toFixed(1)}: ${c.loss.toFixed(3)}`);
     const best = cells.reduce((a, b) => b.loss < a.loss ? b : a);
     svg.append("rect").attr("x", x(best.l)).attr("y", y(best.t)).attr("width", x.bandwidth()).attr("height", y.bandwidth()).attr("rx", 2).attr("fill", "none").attr("stroke", "#0f1115").attr("stroke-width", 1.6);
-    svg.append("g").attr("transform", `translate(0,${H - M.b})`).call(d3.axisBottom(x).tickValues(lv.filter((v, i) => i % 2 === 0)).tickSize(0).tickFormat(v => v + "%")).call(g => g.select(".domain").remove());
+    svg.append("g").attr("transform", `translate(0,${H - M.b})`).call(d3.axisBottom(x).tickValues(lv).tickSize(0).tickFormat(v => v + " pts")).call(g => g.select(".domain").remove());
     svg.append("g").attr("transform", `translate(${M.l},0)`).call(d3.axisLeft(y).tickValues(th.filter((v, i) => i % 2 === 0)).tickSize(0).tickFormat(v => v.toFixed(1))).call(g => g.select(".domain").remove());
     svg.selectAll("text").attr("fill", "#9aa0a8").attr("font-size", 11);
-    svg.append("text").attr("x", W - M.r).attr("y", H - 6).attr("text-anchor", "end").attr("fill", "#9aa0a8").attr("font-size", 11).text("Fundamentals level");
+    svg.append("text").attr("x", W - M.r).attr("y", H - 6).attr("text-anchor", "end").attr("fill", "#9aa0a8").attr("font-size", 11).text("size of the shock");
     svg.append("text").attr("transform", `translate(12,${(H - M.b + M.t) / 2}) rotate(-90)`).attr("text-anchor", "middle").attr("fill", "#9aa0a8").attr("font-size", 11).text("misery threshold");
-    $("heat-note").textContent = `Darker is a better fit. The outlined cell, ${best.l}% at a threshold of ${best.t.toFixed(1)}, is the best of this grid with the other dials where they are.`;
+    $("heat-note").textContent = `Darker is a better fit. The outlined cell, a ${best.l}-point shock at a threshold of ${best.t.toFixed(1)}, is the best of this grid with the other dials where they are.`;
   }
 
   /* states above the threshold: the shock each takes and what it explains */
   function renderStates(pred) {
-    const sp0 = Object.assign({}, spec), p0 = Object.assign({}, P, { lvl: 0 });
+    const sp0 = Object.assign({}, spec), p0 = Object.assign({}, P, { shock: 0 });
     const pre = predictAll(p0, sp0);    // the same dials with the economy dial off
     const by = {};
     ROWS.forEach((row, i) => { const b = by[row.st] || (by[row.st] = { n: 0, pre: 0, post: 0 }); b.n++; b.pre += row.y - pre.m[i]; b.post += row.y - pred.m[i]; });
@@ -440,23 +440,24 @@
   function summary(b) {
     const d = k => DIALS.find(x => x.k === k).fmt(b.p[k]);
     const over = Object.keys(ECON).filter(st => ECON[st].m > b.p.thr).length;
-    return `Best fit on <b>${spec.objective === "winners" ? "winners" : spec.objective === "rmse" ? "margins" : "margins, robust"}</b>${spec.fe ? " with state effects" : ""}: an environment of <b>${d("S")}</b> (the polls said ${fmtGB(GB)}, the model ran ${fmtGB(FROZEN.S)}), elasticity <b>${d("kel")}</b>, mail-in drag <b>${d("mail")}</b>, Fundamentals at <b>${d("lvl")}</b> above a misery threshold of <b>${d("thr")}</b> (${over} states), fundraising <b>${d("wf")}</b>. It calls <b>${b.sc.right} of ${b.sc.n}</b> races right with a root mean square miss of <b>${b.sc.rmse.toFixed(2)}</b> points${spec.fe ? `, or ${b.sc.cvRight} of ${b.sc.n} and ${b.sc.cvRmse.toFixed(2)} once each state's effect is estimated without the race being scored` : ""}.`;
+    return `Best fit on <b>${spec.objective === "winners" ? "winners" : spec.objective === "rmse" ? "margins" : "margins, robust"}</b>${spec.fe ? " with state effects" : ""}: an environment of <b>${d("S")}</b> (the polls said ${fmtGB(GB)}, the model ran ${fmtGB(FROZEN.S)}), elasticity <b>${d("kel")}</b>, mail-in drag <b>${d("mail")}</b>, a Fundamentals shock of <b>${d("shock")}</b> above a misery threshold of <b>${d("thr")}</b> (${over} states), fundraising <b>${d("wf")}</b>. It calls <b>${b.sc.right} of ${b.sc.n}</b> races right with a root mean square miss of <b>${b.sc.rmse.toFixed(2)}</b> points${spec.fe ? `, or ${b.sc.cvRight} of ${b.sc.n} and ${b.sc.cvRmse.toFixed(2)} once each state's effect is estimated without the race being scored` : ""}.`;
   }
 
   // the dial's profile: refit everything else at each level of the economy dial
   function runProfile() {
     if (fitting || !ROWS.length) return;
     fitting = true; const btn = $("profile-btn"); btn.disabled = true; btn.textContent = "Refitting…";
-    const free = DIALS.map(d => d.k).filter(k => !locked[k] && k !== "lvl");
-    const levels = d3.range(0, 301, 20), out = []; let i = 0;
+    // the threshold stays put: free, it would climb above every state and make any shock size fit equally well
+    const free = DIALS.map(d => d.k).filter(k => !locked[k] && k !== "shock" && k !== "thr");
+    const levels = d3.range(0, 20.01, 1), out = []; let i = 0;
     const step = () => {
-      const lvl = levels[i];
-      const res = fit(Object.assign({}, P, { lvl }), spec, free, { restarts: 3, iters: 220 });
-      out.push({ v: lvl, loss: res.v });
+      const shock = levels[i];
+      const res = fit(Object.assign({}, P, { shock }), spec, free, { restarts: 3, iters: 220 });
+      out.push({ v: shock, loss: res.v });
       btn.textContent = `Refitting… ${Math.round(100 * (i + 1) / levels.length)}%`;
       i++;
       if (i < levels.length) setTimeout(step, 10);
-      else { fitting = false; btn.disabled = false; btn.textContent = "Refit the other dials at each level"; renderProfile(out); }
+      else { fitting = false; btn.disabled = false; btn.textContent = "Refit the other dials at each size"; renderProfile(out); }
     };
     setTimeout(step, 10);
   }

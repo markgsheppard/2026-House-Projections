@@ -67,7 +67,7 @@
         </div>
       </div>
       <div class="dials" id="dials"></div>
-      <p class="ctrl-note">Drag any dial and every readout below moves with it. Fit runs Nelder-Mead from eight starting points over the dials you have not held, then polishes the answer one step at a time. The economy dial runs to 300% here because the forecast page stops at 100% of the model&rsquo;s maximum shock.</p>
+      <p class="ctrl-note">Drag any dial and every readout below moves with it. Fit runs Nelder-Mead from eight starting points over the dials you have not held, then polishes the answer one step at a time. The economy dial is in points of margin here and runs to 20; the forecast page stops at 1.5.</p>
       <p class="fit-summary" id="fit-summary"></p>
     </section>
 
@@ -90,7 +90,7 @@
 
     <section class="battle econ">
       <h2>The economy dial</h2>
-      <p class="lede">Fundamentals is the forecast&rsquo;s economic parameter: in any state whose misery index (unemployment plus inflation) is above the threshold, it shifts every race by up to the model&rsquo;s maximum shock against the party holding the governorship. Here it can be re-aimed and re-shaped, and its level and threshold searched.</p>
+      <p class="lede">Fundamentals is the forecast&rsquo;s economic parameter: in any state whose misery index (unemployment plus inflation) is above the threshold, it shifts every race&rsquo;s margin by the size of the shock against the party holding the governorship. Here it can be re-aimed and re-shaped, and its size and threshold searched.</p>
       <div class="fit-row spec-row">
         <div class="ballot bias-card">
           <div class="ballot-head"><label id="target-lbl">Shock falls on</label></div>
@@ -113,10 +113,10 @@
           <h3>Loss along the dial</h3>
           <div class="reg-wrap"><svg id="profile-svg" viewBox="0 0 560 300" role="img" aria-label="Loss as the Fundamentals dial moves"></svg></div>
           <p class="chart-note" id="profile-note"></p>
-          <button type="button" class="btn ghost small" id="profile-btn">Refit the other dials at each level</button>
+          <button type="button" class="btn ghost small" id="profile-btn">Refit the other dials at each size</button>
         </div>
         <div>
-          <h3>Level against threshold</h3>
+          <h3>Size against threshold</h3>
           <div class="reg-wrap"><svg id="heat-svg" viewBox="0 0 560 300" role="img" aria-label="Loss by Fundamentals level and misery threshold"></svg></div>
           <p class="chart-note" id="heat-note"></p>
         </div>
@@ -147,7 +147,7 @@
           <div class="df-col">
             <h4>Reading it</h4>
             <p>Nothing here is a forecast. The dials are fit after the results are in, so the best settings describe the election that happened and are a yardstick for the model, not a method that would have found them in advance. A set of six national dials cannot call every race; what is left in Still wrong is idiosyncratic to those contests. State effects can take the fit much further in sample, and because the economy shock is itself a state-level term, free state effects make the economy dial unidentified: the ridge penalty is what lets the two share the work, and the cross-validated numbers are the honest ones.</p>
-            <p>On the economy dial, the threshold makes the loss a staircase in that direction, which is why the heat map is drawn at fixed steps and why a fit can land on a plateau; the profile button, which refits everything else at each level, is the better guide to how much the dial matters. Shock falls on re-aims the term: at the governor&rsquo;s party as the model was built, at the president&rsquo;s party as a national-incumbent penalty, or at Democrats as a plain under-performance in stressed states.</p>
+            <p>On the economy dial, the threshold makes the loss a staircase in that direction, which is why the heat map is drawn at fixed steps and why a fit can land on a plateau; the profile button, which refits everything else at each size of the shock, is the better guide to how much the dial matters. Shock falls on re-aims the term: at the governor&rsquo;s party as the model was built, at the president&rsquo;s party as a national-incumbent penalty, or at Democrats as a plain under-performance in stressed states.</p>
           </div>
         </div>
       </details>
