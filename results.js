@@ -113,12 +113,9 @@
   function outlookOf(ch, code) {
     const s = score(ch, code), r = s.r, p = s.p;
     if (s.called) return { party: s.actualSide, prob: 1, basis: "called", margin: (typeof r.margin === "number") ? r.margin : null };
-    const e = r.est;
-    if (e && typeof e.d === "number" && typeof e.r === "number") {
-      const dem = e.d >= e.r;
-      return { party: dem ? "D" : "R", prob: dem ? e.d : e.r, basis: "trend", margin: (typeof e.m === "number") ? e.m : null };
-    }
-    if (typeof r.margin === "number" && r.tv > 0) return { party: r.margin >= 0 ? "D" : "R", prob: null, basis: "lead", margin: r.margin };
+    const e = r.est, est = (e && typeof e.d === "number" && typeof e.r === "number") ? { party: e.d >= e.r ? "D" : "R", prob: Math.max(e.d, e.r), margin: (typeof e.m === "number") ? e.m : null } : null;
+    if (typeof r.margin === "number" && r.tv > 0) return { party: r.margin >= 0 ? "D" : "R", prob: null, basis: "lead", margin: r.margin, est };
+    if (est) return { party: est.party, prob: est.prob, basis: "trend", margin: est.margin };
     if (p) return { party: s.projParty, prob: s.projParty === "D" ? p.demProb : 1 - p.demProb, basis: "model", margin: p.margin };
     return { party: null, prob: null, basis: "none", margin: null };
   }
@@ -185,7 +182,7 @@
       const h = SEN_NOT_UP[st];
       if (h === "DD") return fade(cDem, 0.72);
       if (h === "RR") return fade(cGop, 0.72);
-      if (h === "DR") return "url(#split-seats)";
+      if (h === "DR") return "#c9b8e3";
     }
     return LIGHT;
   }
@@ -230,7 +227,10 @@
       const k = outlookOf(ch, code);
       const who = k.party === "D" ? ((r.d && r.d.name) || (r.i && r.i.name) || projName(p, "D", r)) : k.party === "R" ? ((r.r && r.r.name) || projName(p, "R", r)) : null;
       if (who && k.basis === "trend") outlook = `<div class="t-row"><span>Outlook</span><b style="color:${k.party === "D" ? "var(--dem)" : "var(--gop)"}">${who} ${Math.round(k.prob * 100)}%${typeof k.margin === "number" ? ` &middot; ${fmtMargin(k.margin)}` : ""}</b></div><div class="t-soft t-sub">live estimate from the votes counted so far</div>`;
-      else if (who && k.basis === "lead") outlook = `<div class="t-row"><span>Outlook</span><b style="color:${k.party === "D" ? "var(--dem)" : "var(--gop)"}">${who} leads the count</b></div>`;
+      else if (who && k.basis === "lead") {
+        const e = k.est, ewho = e ? (e.party === "D" ? ((r.d && r.d.name) || (r.i && r.i.name) || projName(p, "D", r)) : ((r.r && r.r.name) || projName(p, "R", r))) : null;
+        outlook = `<div class="t-row"><span>Outlook</span><b style="color:${k.party === "D" ? "var(--dem)" : "var(--gop)"}">${who} leads the count</b></div>` + (e ? `<div class="t-soft t-sub">live estimate from the votes counted so far: ${ewho} ${Math.round(e.prob * 100)}%${typeof e.margin === "number" ? ` &middot; ${fmtMargin(e.margin)}` : ""}</div>` : "");
+      }
       else if (who && k.basis === "model") outlook = `<div class="t-row"><span>Outlook</span><b style="color:${k.party === "D" ? "var(--dem)" : "var(--gop)"}">${who}, no votes yet (model ${Math.round(k.prob * 100)}%)</b></div>`;
     }
     const sh = shiftOf(ch, code);
@@ -303,7 +303,7 @@
       const lead = d >= r ? "D" : "R";
       v = `<span class="${lead === "D" ? "lead-d" : "lead-r"}">${lead === "D" ? "Democrats" : "Republicans"}</span> on track for ${Math.max(d, r)}`;
       const ind = oc.i ? `, ${oc.i} independent` : "";
-      const tail = ` <span class="verdict-sub">${st.called.length} called${ind} &middot; ${st.uncalled} projected from the count</span>`;
+      const tail = ` <span class="verdict-sub">${st.called.length} called${ind} &middot; ${st.uncalled} uncalled, given to the current leader</span>`;
       elVerdict.innerHTML = v + tail;
       if (elUncalled) elUncalled.innerHTML = "";
       return;
@@ -425,7 +425,7 @@
     }
     if (view === "outlook") {
       el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .5)}`, "Not yet called, colored by the count so far") + chip(`background:${NONE}`, "No results yet")
-        + (chamber === "senate" ? chip(`background:${fade(cDem, .72)}`, "No race: two Democratic senators") + chip(`background:${fade(cGop, .72)}`, "No race: two Republican senators") + chip(`background:repeating-linear-gradient(135deg, ${fade(cDem, .6)} 0 4px, ${fade(cGop, .6)} 4px 8px)`, "No race: one of each") : "");
+        + (chamber === "senate" ? chip(`background:${fade(cDem, .72)}`, "No race: two Democratic senators") + chip(`background:${fade(cGop, .72)}`, "No race: two Republican senators") + chip(`background:#c9b8e3`, "No race: one of each") : "");
       return;
     }
     el.innerHTML = view === "misses"
