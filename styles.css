@@ -686,3 +686,63 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 .duo #misses .bg-cell { min-height: 92px; }
 .bg-cell.miss .bg-fund { color: var(--ink); }
 .duo .bg-grid.many { grid-template-columns: repeat(4, 1fr); }
+
+/* ---------------------------------------------------------------- calibration page (unlisted) */
+.calib-page .masthead { display: block; }
+.calib-page .masthead .subtitle { max-width: 860px; }
+.calib-controls { padding: 6px 0 4px; border-top: 1px solid var(--line); }
+.calib-page .fit-row { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; margin: 16px 0 18px; }
+.calib-page .fit-row .ballot { flex: 0 0 auto; min-width: 0; }
+.calib-page .fit-row .ballot.lam { flex: 0 1 230px; }
+.calib-page .fit-actions { display: flex; gap: 10px; margin-left: auto; align-items: center; }
+.calib-page .btn { font: 700 13px/1 var(--sans); letter-spacing: .02em; border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: 999px; padding: 10px 20px; cursor: pointer; transition: opacity .15s var(--ease), transform .12s var(--ease); }
+.calib-page .btn:hover { opacity: .85; }
+.calib-page .btn:disabled { opacity: .5; cursor: progress; }
+.calib-page .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line-2); }
+.calib-page .btn.ghost:hover { border-color: var(--ink); opacity: 1; }
+.calib-page .btn.small { padding: 7px 14px; font-size: 12px; margin-top: 8px; }
+.calib-page .link-btn { background: none; border: 0; padding: 0; margin-top: 6px; font: 600 10.5px var(--sans); color: var(--ink-faint); text-decoration: underline; cursor: pointer; }
+.calib-page .link-btn:hover { color: var(--ink-soft); }
+.calib-page .lam.is-off { opacity: .45; }
+.calib-page .dials { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; }
+.calib-page .dial .ballot-head label { overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.calib-page .dial output { font-family: var(--display); font-weight: 800; font-size: 18px; letter-spacing: -.02em; color: #6b7280; font-variant-numeric: tabular-nums; }
+.calib-page .dial-lock { display: flex; align-items: center; gap: 5px; margin-top: 7px; font-size: 10.5px; color: var(--ink-faint); text-transform: none; letter-spacing: 0; font-weight: 500; cursor: pointer; }
+.calib-page .dial-lock input { margin: 0; accent-color: #6b7280; }
+.calib-page input[type="range"].dial-range { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; border-radius: 999px; outline: none; cursor: pointer; background: linear-gradient(90deg, var(--line-2) 0%, #c8ccd1 55%, #6b7280 100%); }
+.calib-page .dial-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #6b7280; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.28); transition: transform .12s var(--ease); }
+.calib-page .dial-range::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.calib-page .dial-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #6b7280; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+.calib-page .ctrl-note { max-width: 760px; }
+.calib-page .fit-summary { margin: 12px 0 0; font-size: 14px; line-height: 1.55; color: var(--ink-soft); max-width: 860px; }
+.calib-page .fit-summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.calib-page .readouts-wrap { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
+.calib-page .readouts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.calib-page .readouts output { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.calib-page .readouts output .vs { font-family: var(--sans); font-weight: 600; font-size: 11px; color: var(--ink-faint); margin: 0 3px; }
+.calib-page .readouts output .d { color: var(--dem); }
+.calib-page .compare, .calib-page .state-table { width: 100%; border-collapse: collapse; margin-top: 22px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.calib-page .compare th, .calib-page .state-table th { text-align: right; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); padding: 6px 10px; border-bottom: 1px solid var(--line-2); }
+.calib-page .compare th:first-child, .calib-page .state-table th:first-child { text-align: left; }
+.calib-page .compare td, .calib-page .state-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; color: var(--ink); }
+.calib-page .compare td:first-child, .calib-page .state-table td:first-child { text-align: left; color: var(--ink-soft); }
+.calib-page .state-table td.d { color: var(--dem); font-weight: 600; } .calib-page .state-table td.r { color: var(--gop); font-weight: 600; }
+.calib-page .battle h3 { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: -.01em; margin: 0 0 8px; }
+.calib-page .calib-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; margin-top: 6px; }
+.calib-page .chart-note { font-size: 12px; line-height: 1.5; color: var(--ink-faint); margin: 8px 0 0; }
+.calib-page .spec-row { margin: 0 0 16px; }
+.calib-page .state-wrap { max-height: 480px; overflow: auto; margin-top: 22px; border-bottom: 1px solid var(--line); }
+.calib-page .state-wrap .state-table { margin-top: 0; }
+.calib-page .state-table th { position: sticky; top: 0; background: #fff; }
+.calib-page .fit-row { align-items: flex-start; }
+.calib-page .spec-row .bias-toggle button { padding: 5px 12px; }
+.calib-page .reg-wrap svg { width: 100%; height: auto; display: block; }
+.calib-page .bg-ch { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: .04em; color: var(--ink-faint); margin-left: 5px; }
+.calib-page .duo .bg-grid { flex: 0 0 auto; grid-auto-rows: auto; }
+.calib-page .tip { transition: opacity .12s var(--ease); }
+@media (max-width: 980px) { .calib-page .dials { grid-template-columns: repeat(3, minmax(0, 1fr)); } .calib-page .readouts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .calib-page .calib-grid2 { grid-template-columns: 1fr; } .calib-page .fit-actions { margin-left: 0; } }
+@media (max-width: 560px) { .calib-page .dials { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; } .calib-page .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .calib-page .compare, .calib-page .state-table { font-size: 12px; } .calib-page .compare td, .calib-page .state-table td { padding: 6px 6px; } }
+.calib-page .frozen-inline { white-space: normal; }
+.calib-page .readouts .ballot-head { flex-wrap: wrap; row-gap: 2px; }
+@media (max-width: 560px) { .calib-page .readouts output { font-size: 18px; } .calib-page .dial output { font-size: 16px; } }

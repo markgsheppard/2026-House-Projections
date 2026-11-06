@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Model Calibration</title>
+  <meta name="description" content="Unlisted: fitting the 2026 forecast's dials to the actual House and Senate margins." />
+
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="calib-page">
+
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="https://www.markgsheppard.com/" target="_blank" rel="noopener">Mark G. Sheppard</a>
+      <nav class="site-nav" aria-label="Pages">
+        <a href="index.html">Forecast</a>
+        <a href="results.html">Results</a>
+        <a href="calibrate.html" class="is-on" aria-current="page">Calibration</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <section class="masthead">
+      <div class="mast-left">
+        <p class="eyebrow">Unlisted page &middot; Model calibration</p>
+        <h1 class="title">What Would Have Called It</h1>
+        <p class="subtitle"><span>A machine-learning pass over the forecast&rsquo;s own dials. The fit searches for the national environment, elasticity, mail-in drag, economic fundamental and fundraising weight that come closest to reproducing every House and Senate margin, then shows how far from perfect the best settings get and what the economy dial had to be.</span> <span class="frozen-inline live" id="stamp">Loading results</span></p>
+      </div>
+    </section>
+
+    <section class="calib-controls">
+      <div class="fit-row">
+        <div class="ballot bias-card">
+          <div class="ballot-head"><label id="obj-lbl">Fit to</label></div>
+          <div class="segmented bias-toggle" role="group" aria-labelledby="obj-lbl" id="obj-toggle">
+            <button type="button" data-obj="robust" aria-pressed="true">Margins, robust</button>
+            <button type="button" data-obj="rmse" aria-pressed="false">Margins</button>
+            <button type="button" data-obj="winners" aria-pressed="false">Winners</button>
+          </div>
+        </div>
+        <div class="ballot bias-card">
+          <div class="ballot-head"><label id="fe-lbl">State effects</label></div>
+          <div class="segmented bias-toggle" role="group" aria-labelledby="fe-lbl" id="fe-toggle">
+            <button type="button" data-fe="off" aria-pressed="true">Off</button>
+            <button type="button" data-fe="on" aria-pressed="false">On</button>
+          </div>
+        </div>
+        <div class="ballot dial lam" id="lam-wrap">
+          <div class="ballot-head"><label for="fe-lam">Ridge penalty</label><output id="fe-lam-val">&lambda; 8.0</output></div>
+          <input type="range" id="fe-lam" class="dial-range" min="-1" max="2" step="0.05" value="0.9" aria-label="Ridge penalty on state effects, log scale" />
+          <button type="button" class="link-btn" id="lam-btn">tune by cross-validation</button>
+        </div>
+        <div class="fit-actions">
+          <button type="button" class="btn" id="fit-btn">Fit</button>
+          <button type="button" class="btn ghost" id="reset-btn">Reset to frozen model</button>
+        </div>
+      </div>
+      <div class="dials" id="dials"></div>
+      <p class="ctrl-note">Drag any dial and every readout below moves with it. Fit runs Nelder-Mead from eight starting points over the dials you have not held, then polishes the answer one step at a time. The economy dial runs to 300% here because the forecast page stops at 100% of the model&rsquo;s maximum shock.</p>
+      <p class="fit-summary" id="fit-summary"></p>
+    </section>
+
+    <section class="readouts-wrap">
+      <div class="readouts">
+        <div class="ballot ro"><div class="ballot-head"><label>Races right</label><output id="ro-right">&ndash;</output></div><p class="ro-note" id="ro-right-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label>RMS miss, pts</label><output id="ro-rmse">&ndash;</output></div><p class="ro-note" id="ro-rmse-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label>House</label><output id="ro-house">&ndash;</output></div><p class="ro-note" id="ro-house-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label>Senate</label><output id="ro-senate">&ndash;</output></div><p class="ro-note" id="ro-senate-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label>Environment</label><output id="ro-env">&ndash;</output></div><p class="ro-note" id="ro-env-note"></p></div>
+      </div>
+      <table class="compare" id="compare"></table>
+    </section>
+
+    <section class="battle curve">
+      <h2>Training</h2>
+      <p class="lede">The loss at every iteration of the fit. Each grey line is one restart of the search from a random setting of the dials; the blue line is the best setting found so far. Flat grey lines that end above the blue one are restarts that settled into a worse local answer.</p>
+      <div class="reg-wrap"><svg id="curve-svg" viewBox="0 0 1000 300" role="img" aria-label="Training curve"></svg></div>
+    </section>
+
+    <section class="battle econ">
+      <h2>The economy dial</h2>
+      <p class="lede">Fundamentals is the forecast&rsquo;s economic parameter: in any state whose misery index (unemployment plus inflation) is above the threshold, it shifts every race by up to the model&rsquo;s maximum shock against the party holding the governorship. Here it can be re-aimed and re-shaped, and its level and threshold searched.</p>
+      <div class="fit-row spec-row">
+        <div class="ballot bias-card">
+          <div class="ballot-head"><label id="target-lbl">Shock falls on</label></div>
+          <div class="segmented bias-toggle" role="group" aria-labelledby="target-lbl" id="target-toggle">
+            <button type="button" data-target="gov" aria-pressed="true">Governor&rsquo;s party</button>
+            <button type="button" data-target="pres" aria-pressed="false">President&rsquo;s party</button>
+            <button type="button" data-target="dem" aria-pressed="false">Democrats</button>
+          </div>
+        </div>
+        <div class="ballot bias-card">
+          <div class="ballot-head"><label id="form-lbl">Shape</label></div>
+          <div class="segmented bias-toggle" role="group" aria-labelledby="form-lbl" id="form-toggle">
+            <button type="button" data-form="step" aria-pressed="true">Step above threshold</button>
+            <button type="button" data-form="slope" aria-pressed="false">Slope above threshold</button>
+          </div>
+        </div>
+      </div>
+      <div class="calib-grid2">
+        <div>
+          <h3>Loss along the dial</h3>
+          <div class="reg-wrap"><svg id="profile-svg" viewBox="0 0 560 300" role="img" aria-label="Loss as the Fundamentals dial moves"></svg></div>
+          <p class="chart-note" id="profile-note"></p>
+          <button type="button" class="btn ghost small" id="profile-btn">Refit the other dials at each level</button>
+        </div>
+        <div>
+          <h3>Level against threshold</h3>
+          <div class="reg-wrap"><svg id="heat-svg" viewBox="0 0 560 300" role="img" aria-label="Loss by Fundamentals level and misery threshold"></svg></div>
+          <p class="chart-note" id="heat-note"></p>
+        </div>
+      </div>
+      <div class="state-wrap"><table class="state-table" id="state-table"></table></div>
+      <p class="chart-note" id="state-note"></p>
+    </section>
+
+    <div class="duo">
+      <section class="regress">
+        <h2>Dials vs. result</h2>
+        <p class="lede">Every scored race at the current dials: the predicted margin across, the actual margin up (the count so far where a race is still being counted). Dots on the dashed diagonal are exact; outlined dots are races the dials still call for the wrong party. Senate races are the larger dots.</p>
+        <div class="reg-wrap"><svg id="fit-svg" viewBox="0 0 1000 560" role="img" aria-label="Predicted margin versus actual margin at the current dials"></svg></div>
+      </section>
+      <section class="battle">
+        <h2>Still wrong</h2>
+        <p class="lede" id="miss-count"></p>
+        <div class="bg-grid" id="misses"></div>
+      </section>
+      <details class="duo-foot">
+        <summary>Notes &amp; method</summary>
+        <div class="duo-foot-grid">
+          <div class="df-col">
+            <h4>What is being fit</h4>
+            <p>The forecast&rsquo;s own equation, with its dials free. Each House district&rsquo;s predicted margin is its lean at an even national vote plus elasticity times the environment, plus the mail-in and economic shocks for its state, plus the fundraising adjustment times its weight; each Senate race starts from the margin implied by its frozen odds and moves with the environment relative to the generic ballot the odds were set at. The scored races are every House and Senate contest with a Democrat-minus-Republican margin in the count (an independent stands in for a missing or outpolled major-party candidate, as in Nebraska and Alaska); California&rsquo;s same-party races and the uncontested seats are left out. Races still being counted are scored on their margin so far, weighted by the share of the expected vote that is in.</p>
+            <p>Margins, robust fits a Huber loss, in which a miss beyond eight points counts linearly rather than squared, so the handful of races whose model inputs are plainly wrong cannot steer the dials; Margins fits the root mean square miss; Winners fits the log loss of the model&rsquo;s own win probabilities against who is ahead, which cares about calling races right and being confident about it. Nelder-Mead is run from the current dials and seven random settings, the best answer is snapped to the dials&rsquo; steps and polished by coordinate search. With state effects on, a ridge-penalized offset for every state is solved in closed form inside each evaluation, and the cross-validated figures re-estimate each state&rsquo;s offset without the race being scored, so they show what the effects would have been worth before the fact. Tune by cross-validation picks the penalty with the lowest leave-one-out miss.</p>
+          </div>
+          <div class="df-col">
+            <h4>Reading it</h4>
+            <p>Nothing here is a forecast. The dials are fit after the results are in, so the best settings describe the election that happened and are a yardstick for the model, not a method that would have found them in advance. A set of six national dials cannot call every race; what is left in Still wrong is idiosyncratic to those contests. State effects can take the fit much further in sample, and because the economy shock is itself a state-level term, free state effects make the economy dial unidentified: the ridge penalty is what lets the two share the work, and the cross-validated numbers are the honest ones.</p>
+            <p>On the economy dial, the threshold makes the loss a staircase in that direction, which is why the heat map is drawn at fixed steps and why a fit can land on a plateau; the profile button, which refits everything else at each level, is the better guide to how much the dial matters. Shock falls on re-aims the term: at the governor&rsquo;s party as the model was built, at the president&rsquo;s party as a national-incumbent penalty, or at Democrats as a plain under-performance in stressed states.</p>
+          </div>
+        </div>
+      </details>
+    </div>
+
+  </main>
+
+  <footer class="site">
+    <div class="wrap foot-grid">
+      <a class="brand foot-brand" href="https://www.markgsheppard.com/" target="_blank" rel="noopener">Mark G. Sheppard</a>
+      <div class="foot-text">
+        <p class="foot-note">Unlisted calibration page for the 2026 forecast. Model inputs from data.js (district leans, elasticities, state misery indexes, mail shares and Q3 fundraising); results from the AP count via The New York Times feed, refreshed by the results pipeline; the frozen projections from final-forecast.json.</p>
+        <p class="tech-note">Rendering: D3&nbsp;v7 (CDN). Fitting in the browser: Nelder-Mead with random restarts, closed-form ridge state effects, leave-one-out cross-validation. Type: Archivo, Hanken&nbsp;Grotesk &amp; Helvetica. Source files: calibrate.html, calibrate.js, styles.css, data.js, results.json, final-forecast.json.</p>
+      </div>
+    </div>
+  </footer>
+
+  <div class="tip" id="tooltip" aria-hidden="true"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="data.js"></script>
+  <script src="calibrate.js"></script>
+</body>
+</html>
