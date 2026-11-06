@@ -14,8 +14,12 @@ district parts into one county total. States reported below the county level
 reported by state house district, is skipped and the page falls back to a state arrow.
 
 Usage:
-    python scripts/fetch_counties.py --senate          # Senate races only (35 files)
-    python scripts/fetch_counties.py --senate --house  # both (about 470 files)
+    python scripts/fetch_counties.py --senate               # Senate races only (35 files)
+    python scripts/fetch_counties.py --senate --governor    # plus the 36 governor races
+    python scripts/fetch_counties.py --house                # every House race (435 files)
+
+Counties a pull does not return (a failed file, an uncontested or same-party race)
+keep their previous row, so coverage only ever grows during the count.
 """
 import json, sys, datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -30,7 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "county-shift.json"
 DATE = "2026-11-03"
 BASE = f"https://static01.nyt.com/elections-assets/pages/data/{DATE}/"
-FEEDS = {"senate": BASE + "results-senate.json", "house": BASE + "results-house.json"}
+FEEDS = {"senate": BASE + "results-senate.json", "house": BASE + "results-house.json", "governor": BASE + "results-governor.json"}
 UA = {"User-Agent": "2026-House-Projections results bot (github.com/markgsheppard/2026-House-Projections)"}
 IND = {"IND", "NPA", "NP", "UNA", "NOL", "NPP", "UNR", "NPD", "CST"}
 
@@ -165,8 +169,8 @@ def pull(chamber):
 
 
 def main():
-    want = [c for c in ("senate", "house") if f"--{c}" in sys.argv] or ["senate"]
-    out = {"senate": {}, "house": {}}
+    want = [c for c in ("senate", "house", "governor") if f"--{c}" in sys.argv] or ["senate"]
+    out = {"senate": {}, "house": {}, "governor": {}}
     if OUT.exists():
         try:
             out.update(json.loads(OUT.read_text()))
@@ -181,10 +185,13 @@ def main():
         if not rows:
             print(f"{chamber}: no county rows; keeping the previous data", file=sys.stderr)
             continue
-        # keep a state's previous rows if its file failed this time
+        # keep every county we already had: a district file that failed this pass, or a county
+        # with no two-party race, should not blank out what an earlier pass found
         prev = out.get(chamber) or {}
-        for st, r in prev.items():
-            rows.setdefault(st, r)
+        for st, old in prev.items():
+            merged = dict(old)
+            merged.update(rows.get(st, {}))
+            rows[st] = merged
         out[chamber] = dict(sorted(rows.items()))
         out[f"{chamber}Updated"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
         print(f"{chamber}: {n} race files, {len(rows)} states, {sum(len(v) for v in rows.values())} county rows")

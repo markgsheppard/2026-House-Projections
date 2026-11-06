@@ -80,9 +80,9 @@ jobs:
             echo "== pass $i of $PASSES at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             sync_main
             python scripts/fetch_results.py || echo "fetch failed, will retry on the next pass"
-            # county margins for the Shift view: Senate every other pass, House every fifth pass
+            # county margins for the Shift view: Senate and governor races every other pass, House every fifth pass
             args=""
-            if [ $((i % 2)) -eq 1 ]; then args="--senate"; fi
+            if [ $((i % 2)) -eq 1 ]; then args="--senate --governor"; fi
             if [ $((i % 5)) -eq 1 ]; then args="$args --house"; fi
             if [ -n "$args" ]; then python scripts/fetch_counties.py $args || echo "county fetch failed, will retry"; fi
             if git diff --quiet -- results.json county-shift.json && [ -n "$(git ls-files results.json)" ] && [ -z "$(git ls-files --others --exclude-standard county-shift.json)" ]; then

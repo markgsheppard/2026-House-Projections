@@ -354,10 +354,14 @@
     const items = [];
     // counties, the whole country: the AP count by county against the county's 2024 presidential
     // margin. The Senate tab uses the Senate race wherever there is one and the House vote elsewhere.
-    const sen = (COUNTY && COUNTY.senate) || {}, hou = (COUNTY && COUNTY.house) || {};
-    const srcFor = st => (chamber === "senate" && senUp[st] && sen[st] && Object.keys(sen[st]).length) ? sen[st] : (hou[st] && Object.keys(hou[st]).length ? hou[st] : null);
+    // Every county takes the first race that gives it a two-party margin: on the House tab the
+    // House vote, then the Senate race, then the governor's race; on the Senate tab the Senate
+    // race first, then the House vote, then the governor's race.
+    const sen = (COUNTY && COUNTY.senate) || {}, hou = (COUNTY && COUNTY.house) || {}, gov = (COUNTY && COUNTY.governor) || {};
+    const order = chamber === "senate" ? [sen, hou, gov] : [hou, sen, gov];
+    const srcFor = st => { const rows = {}; order.forEach(src => { const r = src[st]; if (!r) return; for (const fips in r) if (!rows[fips] && r[fips] && r[fips][3]) rows[fips] = r[fips]; }); return Object.keys(rows).length ? rows : null; };
     const covered = new Set();
-    if (CENT) for (const st of new Set([...Object.keys(sen), ...Object.keys(hou)])) {
+    if (CENT) for (const st of new Set([...Object.keys(sen), ...Object.keys(hou), ...Object.keys(gov)])) {
       const rows = srcFor(st); if (!rows) continue;
       covered.add(st);
       for (const fips in rows) {
@@ -397,7 +401,7 @@
     }
     const arrow = (col, dir) => `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="${dir > 0 ? "M2,12L19,3M13,2L19,3L18,9" : "M20,12L3,3M9,2L3,3L4,9"}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     if (view === "shift") {
-      el.innerHTML = `<span class="chip">${arrow(cDem, -1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, 1)}Shift toward Republicans</span><span class="chip chip-note">one arrow per county across the country, from the county&rsquo;s 2024 presidential margin${chamber === "senate" ? "; the Senate race where there is one, the House vote elsewhere" : ""}; longer arrows are bigger shifts, faint ones have little of the vote counted</span>`;
+      el.innerHTML = `<span class="chip">${arrow(cDem, -1)}Shift toward Democrats</span><span class="chip">${arrow(cGop, 1)}Shift toward Republicans</span><span class="chip chip-note">one arrow per county across the country, from the county&rsquo;s 2024 presidential margin, using ${chamber === "senate" ? "the Senate race where there is one, otherwise the House vote, otherwise the governor&rsquo;s race" : "the House vote, or the Senate or governor&rsquo;s race where the House seat had no two-party contest"}; longer arrows are bigger shifts, faint ones have little of the vote counted</span>`;
       return;
     }
     if (view === "redrawn") {
