@@ -180,9 +180,9 @@
     if (senUp[st]) return fillFor("senate", st);
     if (view === "outlook") {   // no race this year: the delegation as it stands
       const h = SEN_NOT_UP[st];
-      if (h === "DD") return fade(cDem, 0.72);
-      if (h === "RR") return fade(cGop, 0.72);
-      if (h === "DR") return "#c9b8e3";
+      if (h === "DD") return fade(cDem, 0.18);   // two Democratic senators: a deep blue
+      if (h === "RR") return fade(cGop, 0.18);   // two Republican senators: a deep red
+      if (h === "DR") return fade(cDem, 0.62);   // one of each: a light blue
     }
     return LIGHT;
   }
@@ -425,7 +425,7 @@
     }
     if (view === "outlook") {
       el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .5)}`, "Not yet called, colored by the count so far") + chip(`background:${NONE}`, "No results yet")
-        + (chamber === "senate" ? chip(`background:${fade(cDem, .72)}`, "No race: two Democratic senators") + chip(`background:${fade(cGop, .72)}`, "No race: two Republican senators") + chip(`background:#c9b8e3`, "No race: one of each") : "");
+        + (chamber === "senate" ? chip(`background:${fade(cDem, .18)}`, "No race: two Democratic senators") + chip(`background:${fade(cDem, .62)}`, "No race: one Democrat, one Republican") + chip(`background:${fade(cGop, .18)}`, "No race: two Republican senators") : "");
       return;
     }
     el.innerHTML = view === "misses"
