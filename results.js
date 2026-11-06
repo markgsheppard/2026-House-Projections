@@ -42,6 +42,7 @@
   const gState = svg.append("g").attr("class", "states");
   const gHi = svg.append("g").attr("class", "highlight");
   const gShift = svg.append("g").attr("class", "shift-arrows").style("pointer-events", "none");
+  svg.insert("defs", ":first-child").html(`<pattern id="split-seats" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><rect width="3" height="6" fill="${fade(cDem, 0.6)}"/><rect x="3" width="3" height="6" fill="${fade(cGop, 0.6)}"/></pattern>`);
   const codeOf = id => forecast[id].code;
   const paths = gDist.selectAll("path").data(allDistricts, d => d.id).join("path").attr("class", "district").attr("d", path);
   const stateMesh = topojson.mesh(districts, districts.objects.districts, (a, b) => a.properties.st !== b.properties.st);
@@ -164,6 +165,7 @@
     }
     if (view === "shift") return (r.status === "none") ? NONE : "#f4f5f7";
     if (view === "outlook" && !s.called) {
+      if (typeof r.margin === "number" && r.tv > 0) return fade(colorScale(r.margin >= 0 ? Math.max(r.margin, 2) : Math.min(r.margin, -2)), 0.5);   // the count so far, tinted toward the leader even when it is close
       const k = outlookOf(ch, code);
       if (!k.party || k.party === "I") return NONE;
       const m = (typeof k.margin === "number") ? k.margin : (k.party === "D" ? 12 : -12);
@@ -176,7 +178,17 @@
     if (r.status === "counting") return (typeof r.margin === "number") ? fade(colorScale(r.margin), 0.55) : COUNTING;   // leading, not called: a lighter lean color
     return NONE;
   }
-  function senFill(st) { return senUp[st] ? fillFor("senate", st) : LIGHT; }
+  const SEN_NOT_UP = { AZ: "DD", CA: "DD", CT: "DD", HI: "DD", IN: "RR", MD: "DD", MO: "RR", NV: "DD", NY: "DD", ND: "RR", PA: "DR", UT: "RR", VT: "DD", WA: "DD", WI: "DR" };
+  function senFill(st) {
+    if (senUp[st]) return fillFor("senate", st);
+    if (view === "outlook") {   // no race this year: the delegation as it stands
+      const h = SEN_NOT_UP[st];
+      if (h === "DD") return fade(cDem, 0.72);
+      if (h === "RR") return fade(cGop, 0.72);
+      if (h === "DR") return "url(#split-seats)";
+    }
+    return LIGHT;
+  }
 
   /* ---- tooltip ------------------------------------------------------------- */
   const tooltip = document.getElementById("tooltip");
@@ -412,7 +424,8 @@
       return;
     }
     if (view === "outlook") {
-      el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cGop, .5)}`, "Projected Republican, not yet called") + chip(`background:${fade(cDem, .5)}`, "Projected Democrat, not yet called") + chip(`background:${NONE}`, "No results yet") + (chamber === "senate" ? chip(`background:${LIGHT}`, "Not on the ballot") : "");
+      el.innerHTML = chip(`background:${cGop}`, "Called, Republican") + chip(`background:${cDem}`, "Called, Democrat") + chip(`background:${fade(cDem, .5)}`, "Not yet called, colored by the count so far") + chip(`background:${NONE}`, "No results yet")
+        + (chamber === "senate" ? chip(`background:${fade(cDem, .72)}`, "No race: two Democratic senators") + chip(`background:${fade(cGop, .72)}`, "No race: two Republican senators") + chip(`background:repeating-linear-gradient(135deg, ${fade(cDem, .6)} 0 4px, ${fade(cGop, .6)} 4px 8px)`, "No race: one of each") : "");
       return;
     }
     el.innerHTML = view === "misses"
