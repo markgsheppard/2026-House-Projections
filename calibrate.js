@@ -50,15 +50,46 @@
   function mailShock(st, drag) { const m = MAIL[st]; return (m && MAILK > 0) ? -(drag / MAILK) * m.share * m.skew : 0; }
 
   /* ---- the dials --------------------------------------------------------- */
+  const FROZEN_S_DEFAULT = 7.72;
   const DIALS = [
-    { k: "S",    label: "Environment",   min: -10, max: 25,  step: 0.1,  fmt: fmtGB, note: "national Democratic margin applied through each seat's elasticity (the forecast's effective ballot)" },
-    { k: "kel",  label: "Elasticity",    min: 0,   max: 2.5, step: 0.01, fmt: v => v.toFixed(2) + "×", note: "multiplier on every seat's elasticity; 1 is the model as run" },
-    { k: "mail", label: "Mail-in drag",  min: 0,   max: 6,   step: 0.1,  fmt: v => v.toFixed(1) + " pts", note: "national Democratic drag from restricted mail voting, spread by each state's mail share and skew" },
-    { k: "shock", label: "Fundamentals", min: 0,  max: 20,  step: 0.1,  fmt: v => v.toFixed(1) + " pts", note: "the economy dial: the shift in the margin, in points, applied to every race in a state whose misery index is above the threshold (the forecast page's maximum is " + ECON_MAX + ")" },
-    { k: "thr",  label: "Misery threshold", min: 5, max: 10.5, step: 0.1, fmt: v => v.toFixed(1), note: "misery index (unemployment plus inflation) above which a state takes the shock; the model used " + ECON_THRESH },
-    { k: "wf",   label: "Fundraising",   min: 0,   max: 10,  step: 0.05, fmt: v => v.toFixed(2) + "×", note: "multiplier on the capped Q3 fundraising adjustment; 1 is the model as run" },
+    { k: "S",    label: "Environment",   min: -10, max: 25,  step: 0.1,  fmt: fmtGB },
+    { k: "kel",  label: "Elasticity",    min: 0,   max: 2.5, step: 0.01, fmt: v => v.toFixed(2) + "\u00d7" },
+    { k: "mail", label: "Mail-in drag",  min: 0,   max: 6,   step: 0.1,  fmt: v => v.toFixed(1) + " pts" },
+    { k: "shock", label: "Fundamentals", min: 0,  max: 20,  step: 0.1,  fmt: v => v.toFixed(1) + " pts" },
+    { k: "thr",  label: "Misery threshold", min: 5, max: 10.5, step: 0.1, fmt: v => v.toFixed(1) },
+    { k: "wf",   label: "Fundraising",   min: 0,   max: 10,  step: 0.05, fmt: v => v.toFixed(2) + "\u00d7" },
   ];
-  const FROZEN = { S: 7.72, kel: 1, mail: 0, shock: 0, thr: ECON_THRESH, wf: 1 };
+  // hover explanations, in plain language, for every label on the page
+  const TIPS = {
+    S: ["Environment", "How good a year it was for Democrats nationwide, in points of margin. Every race moves with this number by its own elasticity: swing seats move almost point for point, safe seats barely budge. The polls had it at " + fmtGB(GB) + "; the model ran " + fmtGB(FROZEN_S_DEFAULT) + "."],
+    kel: ["Elasticity", "How much races respond to the national mood. 1\u00d7 is the model as run. Above 1, the swingy seats swung even more than the model expected; below 1, the swing landed more evenly than it expected."],
+    mail: ["Mail-in drag", "How many points Democrats lost nationwide to restricted mail voting. It lands hardest in states where many Democrats vote by mail and lightest where few do. Zero means the fit found no such penalty."],
+    shock: ["Fundamentals", "The economy's bite, in points of margin. In every state whose misery index (unemployment plus inflation) is above the threshold, every race shifts this many points against the party holding the governorship: a Democratic governor's state moves toward Republicans, a Republican governor's toward Democrats. The forecast page allowed at most " + ECON_MAX + "."],
+    thr: ["Misery threshold", "How bad a state's economy has to be before the Fundamentals shock applies. Lower it to bring in more states, raise it to confine the shock to the worst-off ones. The model used " + ECON_THRESH + "."],
+    wf: ["Fundraising", "How much third-quarter money mattered. 1\u00d7 is the model's capped adjustment; 5\u00d7 means a well-funded candidate gained five times the edge the model gave them."],
+    hold: ["Hold", "Keep this dial where it is while the others are searched."],
+    obj: ["Fit to", "What the search tries to get right. Margins, robust: the size of every miss, with the handful of very wrong races unable to dominate. Margins: the plain root mean square miss. Winners: calling the right party, and being confident about it."],
+    fe: ["State effects", "Gives every state its own offset on top of the dials, like a per-state fudge factor. That always fits better in sample, so trust the cross-validated numbers, which estimate each state's offset without the race being scored."],
+    lam: ["Ridge penalty", "How tightly the state offsets are reined in. A small penalty lets them absorb almost anything; a large one shrinks them toward zero. Tune by cross-validation picks the value that predicts held-out races best."],
+    fit: ["Fit", "Searches for the dial settings that best reproduce the results: eight starting points, the best answer kept and polished. Dials marked hold stay where they are. It takes about a second."],
+    reset: ["Reset", "Puts every dial back to the forecast as it was frozen on November 2."],
+    right: ["Races right", "How many of the scored races these dials call for the party that actually won or leads."],
+    rmse: ["RMS miss", "The typical size of a miss, in points of margin: the square root of the average squared gap between predicted and actual."],
+    house: ["House", "Democratic House seats the dials would have predicted, next to the seats Democrats actually won or lead."],
+    senate: ["Senate", "Democratic Senate seats the dials would have predicted, next to the seats Democrats actually hold, won or lead."],
+    env: ["Environment", "The national Democratic margin the dials imply, with what the polls said and what the model ran for comparison."],
+    compare: ["Side by side", "The frozen forecast, the dials as they are now, and the last fit. The first rows are how well each does; the rest are the settings themselves."],
+    training: ["Training", "The search watching itself. Each grey line is one restart falling toward a good answer; the blue line is the best found so far. If every restart ends in the same place, the answer is solid; if they scatter, the dials trade off against each other."],
+    target: ["Shock falls on", "Who pays for a bad economy. Governor's party is how the model was built; President's party makes it a penalty on the national incumbent party everywhere above the threshold; Democrats makes it plain Democratic underperformance in stressed states."],
+    form: ["Shape", "Step: every state above the threshold takes the full shock. Slope: the shock grows with how far above the threshold a state sits, in points per point of misery."],
+    profile: ["Loss along the dial", "Read it like a valley: the bottom is the shock size that fits best. A flat valley means the results barely care what the dial is set to; a sharp one means they do."],
+    refit: ["Refit", "Re-runs the search at each size of the shock, threshold held, so the dashed line shows how good the fit can get at every size once the other dials adjust around it."],
+    heat: ["Size against threshold", "Every combination of shock size and threshold, darker where the fit is better. A dark band down the left means the economy dial earns little; a dark pocket means one size and threshold do real work."],
+    states: ["States above the threshold", "The states the economy dial touches right now, how hard it hits them and in which direction, and how far each ran from the dials with the shock off and on. A miss that shrinks when the dial is on is a state the shock is explaining."],
+    scatter: ["Dials vs. result", "Each dot is a race. On the dashed diagonal the dials nailed the margin; above it Democrats did better than predicted, below it worse. Outlined dots are called for the wrong party."],
+    wrong: ["Still wrong", "The races no setting of these dials calls right. What they have in common is the story the model is missing."]
+  };
+  const FROZEN = { S: FROZEN_S_DEFAULT, kel: 1, mail: 0, shock: 0, thr: ECON_THRESH, wf: 1 };
   let P = Object.assign({}, FROZEN);
   const locked = {};                       // dial -> true to hold it fixed during a fit
   const spec = { target: "gov", form: "step", fe: false, lam: 8, objective: "robust" };
@@ -219,6 +250,31 @@
   /* ---- rendering --------------------------------------------------------- */
   const $ = id => document.getElementById(id);
   let fitting = false;
+  const tooltip = $("tooltip");
+  function moveTip(evt) {
+    const pad = 16, tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    let x = evt.clientX + pad, y = evt.clientY + pad;
+    if (x + tw > window.innerWidth - 8) x = evt.clientX - tw - pad;
+    if (y + th > window.innerHeight - 8) y = evt.clientY - th - pad;
+    tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
+  }
+  function showTip(evt, html, wide) { tooltip.innerHTML = html; tooltip.classList.add("on"); tooltip.classList.toggle("wide", !!wide); tooltip.setAttribute("aria-hidden", "false"); moveTip(evt); }
+  function hideTip() { tooltip.classList.remove("on", "wide"); tooltip.setAttribute("aria-hidden", "true"); }
+  // every label with a data-tip gets the same hover card, in plain language, with the arrow cursor left alone
+  function wireTips() {
+    document.querySelectorAll(".has-tip[data-tip]").forEach(el => {
+      if (el.dataset.tipWired) return;
+      const t = TIPS[el.dataset.tip]; if (!t) return;
+      el.dataset.tipWired = "1"; el.setAttribute("aria-description", t[1]); if (el.tabIndex < 0) el.tabIndex = 0;
+      const show = evt => {
+        const html = `<div class="t-code">${t[0]}</div><div class="t-desc">${t[1]}</div>`;
+        if (evt && evt.clientX != null) showTip(evt, html, true);
+        else { const r = el.getBoundingClientRect(); showTip({ clientX: r.left, clientY: r.bottom }, html, true); }
+      };
+      el.addEventListener("mouseenter", show); el.addEventListener("mousemove", moveTip);
+      el.addEventListener("mouseleave", hideTip); el.addEventListener("focus", show); el.addEventListener("blur", hideTip);
+    });
+  }
 
   function renderDials() {
     const host = $("dials"); if (!host) return;
@@ -226,16 +282,17 @@
       host.innerHTML = DIALS.map(d => `
         <div class="ballot dial" data-k="${d.k}">
           <div class="ballot-head">
-            <label for="dial-${d.k}" class="has-tip" title="${d.note}">${d.label}</label>
+            <label for="dial-${d.k}" class="has-tip" data-tip="${d.k}">${d.label}</label>
             <output id="dial-${d.k}-val"></output>
           </div>
           <input type="range" id="dial-${d.k}" class="dial-range" min="${d.min}" max="${d.max}" step="${d.step}" value="${P[d.k]}" aria-label="${d.label}" />
-          <label class="dial-lock"><input type="checkbox" id="lock-${d.k}" /> hold during fit</label>
+          <label class="dial-lock has-tip" data-tip="hold"><input type="checkbox" id="lock-${d.k}" /> hold during fit</label>
         </div>`).join("");
       DIALS.forEach(d => {
         $("dial-" + d.k).addEventListener("input", e => { P[d.k] = +e.target.value; BEST = null; renderAll(); });
         $("lock-" + d.k).addEventListener("change", e => { locked[d.k] = e.target.checked; });
       });
+      wireTips();
     }
     DIALS.forEach(d => { $("dial-" + d.k).value = String(P[d.k]); $("dial-" + d.k + "-val").textContent = d.fmt(P[d.k]); });
     $("fe-lam").value = String(Math.log10(spec.lam)); $("fe-lam-val").textContent = "\u03bb " + spec.lam.toFixed(1);
@@ -328,7 +385,8 @@
     const ext = d3.extent(cells, c => c.loss);
     const col = d3.scaleSequential(d3.interpolateRgb("#0d52bd", "#eef3fb")).domain(ext);
     svg.selectAll("rect").data(cells).join("rect").attr("x", c => x(c.l)).attr("y", c => y(c.t)).attr("width", x.bandwidth()).attr("height", y.bandwidth()).attr("rx", 2).attr("fill", c => col(c.loss))
-      .append("title").text(c => `Fundamentals ${c.l} pts, threshold ${c.t.toFixed(1)}: ${c.loss.toFixed(3)}`);
+      .on("mouseenter", (ev, c) => showTip(ev, `<div class="t-code">${c.l}-point shock, threshold ${c.t.toFixed(1)}</div><div class="t-row"><span>Loss</span><b>${c.loss.toFixed(3)}</b></div><div class="t-row"><span>States above</span><b>${Object.keys(ECON).filter(st => ECON[st].m > c.t).length}</b></div>`))
+      .on("mousemove", moveTip).on("mouseleave", hideTip);
     const best = cells.reduce((a, b) => b.loss < a.loss ? b : a);
     svg.append("rect").attr("x", x(best.l)).attr("y", y(best.t)).attr("width", x.bandwidth()).attr("height", y.bandwidth()).attr("rx", 2).attr("fill", "none").attr("stroke", "#0f1115").attr("stroke-width", 1.6);
     svg.append("g").attr("transform", `translate(0,${H - M.b})`).call(d3.axisBottom(x).tickValues(lv).tickSize(0).tickFormat(v => v + " pts")).call(g => g.select(".domain").remove());
@@ -369,17 +427,12 @@
     svg.append("line").attr("x1", x(-lim)).attr("y1", y(-lim)).attr("x2", x(lim)).attr("y2", y(lim)).attr("stroke", "#c9ccd1").attr("stroke-dasharray", "4 4");
     svg.append("line").attr("x1", x(0)).attr("x2", x(0)).attr("y1", M.t).attr("y2", H - M.b).attr("stroke", "#d6d8db");
     svg.append("line").attr("y1", y(0)).attr("y2", y(0)).attr("x1", M.l).attr("x2", W - M.r).attr("stroke", "#d6d8db");
-    const tip = $("tooltip");
     svg.append("g").selectAll("circle").data(pts).join("circle")
       .attr("cx", p => x(p.x)).attr("cy", p => y(p.y)).attr("r", p => p.row.ch === "senate" ? 5 : 3.6)
       .attr("fill", p => p.y >= 0 ? "#2e74d0" : "#e24b38").attr("fill-opacity", p => p.miss ? 0.9 : 0.45)
       .attr("stroke", p => p.miss ? "#0f1115" : "none").attr("stroke-width", 1.4)
-      .on("mouseenter", (ev, p) => {
-        tip.innerHTML = `<div class="t-code">${p.row.code}${p.row.ch === "senate" ? " Senate" : ""}</div><div class="t-row"><span>Predicted</span><b>${fmtMargin(p.x)}</b></div><div class="t-row"><span>Result${p.row.called ? "" : " so far"}</span><b>${fmtMargin(p.y)}</b></div><div class="t-row"><span>Miss</span><b>${fmtMargin(p.y - p.x)}</b></div>`;
-        tip.setAttribute("aria-hidden", "false"); tip.style.opacity = 1;
-      })
-      .on("mousemove", ev => { tip.style.left = (ev.pageX + 14) + "px"; tip.style.top = (ev.pageY + 14) + "px"; })
-      .on("mouseleave", () => { tip.style.opacity = 0; tip.setAttribute("aria-hidden", "true"); });
+      .on("mouseenter", (ev, p) => showTip(ev, `<div class="t-code">${p.row.code}${p.row.ch === "senate" ? " Senate" : ""}</div><div class="t-row"><span>Predicted</span><b>${fmtMargin(p.x)}</b></div><div class="t-row"><span>Result${p.row.called ? "" : " so far"}</span><b>${fmtMargin(p.y)}</b></div><div class="t-row"><span>Miss</span><b>${fmtMargin(p.y - p.x)}</b></div>`))
+      .on("mousemove", moveTip).on("mouseleave", hideTip);
     svg.append("text").attr("x", W - M.r).attr("y", H - 8).attr("text-anchor", "end").attr("fill", "#9aa0a8").attr("font-size", 11).text("predicted margin at these dials");
     svg.append("text").attr("transform", `translate(14,${(H - M.b + M.t) / 2}) rotate(-90)`).attr("text-anchor", "middle").attr("fill", "#9aa0a8").attr("font-size", 11).text("actual margin");
     const misses = pts.filter(p => p.miss).sort((a, b) => Math.abs(b.y - b.x) - Math.abs(a.y - a.x));
@@ -486,7 +539,7 @@
     return r.json();
   }
   (async function init() {
-    wire(); renderCurve(null);
+    wire(); wireTips(); renderCurve(null);
     try { FF = await getJSON("final-forecast.json"); if (FF && typeof FF.effectiveBallot === "number") { FROZEN.S = FF.effectiveBallot; P.S = FROZEN.S; } } catch (e) { /* the frozen file is optional */ }
     try { RES = await getJSON("results.json"); } catch (e) { $("stamp").textContent = "Could not load results.json"; return; }
     buildRows(); renderAll();

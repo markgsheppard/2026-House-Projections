@@ -42,7 +42,7 @@
     <section class="calib-controls">
       <div class="fit-row">
         <div class="ballot bias-card">
-          <div class="ballot-head"><label id="obj-lbl">Fit to</label></div>
+          <div class="ballot-head"><label id="obj-lbl" class="has-tip" data-tip="obj">Fit to</label></div>
           <div class="segmented bias-toggle" role="group" aria-labelledby="obj-lbl" id="obj-toggle">
             <button type="button" data-obj="robust" aria-pressed="true">Margins, robust</button>
             <button type="button" data-obj="rmse" aria-pressed="false">Margins</button>
@@ -50,20 +50,20 @@
           </div>
         </div>
         <div class="ballot bias-card">
-          <div class="ballot-head"><label id="fe-lbl">State effects</label></div>
+          <div class="ballot-head"><label id="fe-lbl" class="has-tip" data-tip="fe">State effects</label></div>
           <div class="segmented bias-toggle" role="group" aria-labelledby="fe-lbl" id="fe-toggle">
             <button type="button" data-fe="off" aria-pressed="true">Off</button>
             <button type="button" data-fe="on" aria-pressed="false">On</button>
           </div>
         </div>
         <div class="ballot dial lam" id="lam-wrap">
-          <div class="ballot-head"><label for="fe-lam">Ridge penalty</label><output id="fe-lam-val">&lambda; 8.0</output></div>
+          <div class="ballot-head"><label for="fe-lam" class="has-tip" data-tip="lam">Ridge penalty</label><output id="fe-lam-val">&lambda; 8.0</output></div>
           <input type="range" id="fe-lam" class="dial-range" min="-1" max="2" step="0.05" value="0.9" aria-label="Ridge penalty on state effects, log scale" />
           <button type="button" class="link-btn" id="lam-btn">tune by cross-validation</button>
         </div>
         <div class="fit-actions">
-          <button type="button" class="btn" id="fit-btn">Fit</button>
-          <button type="button" class="btn ghost" id="reset-btn">Reset to frozen model</button>
+          <button type="button" class="btn has-tip" data-tip="fit" id="fit-btn">Fit</button>
+          <button type="button" class="btn ghost has-tip" data-tip="reset" id="reset-btn">Reset to frozen model</button>
         </div>
       </div>
       <div class="dials" id="dials"></div>
@@ -73,17 +73,18 @@
 
     <section class="readouts-wrap">
       <div class="readouts">
-        <div class="ballot ro"><div class="ballot-head"><label>Races right</label><output id="ro-right">&ndash;</output></div><p class="ro-note" id="ro-right-note"></p></div>
-        <div class="ballot ro"><div class="ballot-head"><label>RMS miss, pts</label><output id="ro-rmse">&ndash;</output></div><p class="ro-note" id="ro-rmse-note"></p></div>
-        <div class="ballot ro"><div class="ballot-head"><label>House</label><output id="ro-house">&ndash;</output></div><p class="ro-note" id="ro-house-note"></p></div>
-        <div class="ballot ro"><div class="ballot-head"><label>Senate</label><output id="ro-senate">&ndash;</output></div><p class="ro-note" id="ro-senate-note"></p></div>
-        <div class="ballot ro"><div class="ballot-head"><label>Environment</label><output id="ro-env">&ndash;</output></div><p class="ro-note" id="ro-env-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label class="has-tip" data-tip="right">Races right</label><output id="ro-right">&ndash;</output></div><p class="ro-note" id="ro-right-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label class="has-tip" data-tip="rmse">RMS miss, pts</label><output id="ro-rmse">&ndash;</output></div><p class="ro-note" id="ro-rmse-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label class="has-tip" data-tip="house">House</label><output id="ro-house">&ndash;</output></div><p class="ro-note" id="ro-house-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label class="has-tip" data-tip="senate">Senate</label><output id="ro-senate">&ndash;</output></div><p class="ro-note" id="ro-senate-note"></p></div>
+        <div class="ballot ro"><div class="ballot-head"><label class="has-tip" data-tip="env">Environment</label><output id="ro-env">&ndash;</output></div><p class="ro-note" id="ro-env-note"></p></div>
       </div>
+      <p class="table-head has-tip" data-tip="compare">Side by side</p>
       <table class="compare" id="compare"></table>
     </section>
 
     <section class="battle curve">
-      <h2>Training</h2>
+      <h2 class="has-tip" data-tip="training">Training</h2>
       <p class="lede">The loss at every iteration of the fit. Each grey line is one restart of the search from a random setting of the dials; the blue line is the best setting found so far. Flat grey lines that end above the blue one are restarts that settled into a worse local answer.</p>
       <div class="reg-wrap"><svg id="curve-svg" viewBox="0 0 1000 300" role="img" aria-label="Training curve"></svg></div>
     </section>
@@ -93,7 +94,7 @@
       <p class="lede">Fundamentals is the forecast&rsquo;s economic parameter: in any state whose misery index (unemployment plus inflation) is above the threshold, it shifts every race&rsquo;s margin by the size of the shock against the party holding the governorship. Here it can be re-aimed and re-shaped, and its size and threshold searched.</p>
       <div class="fit-row spec-row">
         <div class="ballot bias-card">
-          <div class="ballot-head"><label id="target-lbl">Shock falls on</label></div>
+          <div class="ballot-head"><label id="target-lbl" class="has-tip" data-tip="target">Shock falls on</label></div>
           <div class="segmented bias-toggle" role="group" aria-labelledby="target-lbl" id="target-toggle">
             <button type="button" data-target="gov" aria-pressed="true">Governor&rsquo;s party</button>
             <button type="button" data-target="pres" aria-pressed="false">President&rsquo;s party</button>
@@ -101,7 +102,7 @@
           </div>
         </div>
         <div class="ballot bias-card">
-          <div class="ballot-head"><label id="form-lbl">Shape</label></div>
+          <div class="ballot-head"><label id="form-lbl" class="has-tip" data-tip="form">Shape</label></div>
           <div class="segmented bias-toggle" role="group" aria-labelledby="form-lbl" id="form-toggle">
             <button type="button" data-form="step" aria-pressed="true">Step above threshold</button>
             <button type="button" data-form="slope" aria-pressed="false">Slope above threshold</button>
@@ -110,29 +111,30 @@
       </div>
       <div class="calib-grid2">
         <div>
-          <h3>Loss along the dial</h3>
+          <h3 class="has-tip" data-tip="profile">Loss along the dial</h3>
           <div class="reg-wrap"><svg id="profile-svg" viewBox="0 0 560 300" role="img" aria-label="Loss as the Fundamentals dial moves"></svg></div>
           <p class="chart-note" id="profile-note"></p>
-          <button type="button" class="btn ghost small" id="profile-btn">Refit the other dials at each size</button>
+          <button type="button" class="btn ghost small has-tip" data-tip="refit" id="profile-btn">Refit the other dials at each size</button>
         </div>
         <div>
-          <h3>Size against threshold</h3>
+          <h3 class="has-tip" data-tip="heat">Size against threshold</h3>
           <div class="reg-wrap"><svg id="heat-svg" viewBox="0 0 560 300" role="img" aria-label="Loss by Fundamentals level and misery threshold"></svg></div>
           <p class="chart-note" id="heat-note"></p>
         </div>
       </div>
+      <p class="table-head has-tip" data-tip="states">States above the threshold</p>
       <div class="state-wrap"><table class="state-table" id="state-table"></table></div>
       <p class="chart-note" id="state-note"></p>
     </section>
 
     <div class="duo">
       <section class="regress">
-        <h2>Dials vs. result</h2>
+        <h2 class="has-tip" data-tip="scatter">Dials vs. result</h2>
         <p class="lede">Every scored race at the current dials: the predicted margin across, the actual margin up (the count so far where a race is still being counted). Dots on the dashed diagonal are exact; outlined dots are races the dials still call for the wrong party. Senate races are the larger dots.</p>
         <div class="reg-wrap"><svg id="fit-svg" viewBox="0 0 1000 560" role="img" aria-label="Predicted margin versus actual margin at the current dials"></svg></div>
       </section>
       <section class="battle">
-        <h2>Still wrong</h2>
+        <h2 class="has-tip" data-tip="wrong">Still wrong</h2>
         <p class="lede" id="miss-count"></p>
         <div class="bg-grid" id="misses"></div>
       </section>

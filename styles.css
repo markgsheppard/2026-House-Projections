@@ -705,7 +705,14 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 .calib-page .link-btn:hover { color: var(--ink-soft); }
 .calib-page .lam.is-off { opacity: .45; }
 .calib-page .dials { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; }
-.calib-page .dial .ballot-head label { overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.calib-page .dial .ballot-head label { overflow: hidden; text-overflow: ellipsis; }
+.calib-page .has-tip, .calib-page .has-tip:hover, .calib-page h2.has-tip, .calib-page h3.has-tip { cursor: default; }
+.calib-page .btn.has-tip { cursor: pointer; }
+.calib-page .reg-wrap svg, .calib-page .reg-wrap svg * { cursor: default; }
+.calib-page .table-head { margin: 22px 0 0; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+.calib-page .table-head + .compare { margin-top: 8px; }
+.calib-page .table-head + .state-wrap { margin-top: 8px; }
+.calib-page h2.has-tip:hover, .calib-page h3.has-tip:hover { color: var(--ink); }
 .calib-page .dial output { font-family: var(--display); font-weight: 800; font-size: 18px; letter-spacing: -.02em; color: #6b7280; font-variant-numeric: tabular-nums; }
 .calib-page .dial-lock { display: flex; align-items: center; gap: 5px; margin-top: 7px; font-size: 10.5px; color: var(--ink-faint); text-transform: none; letter-spacing: 0; font-weight: 500; cursor: pointer; }
 .calib-page .dial-lock input { margin: 0; accent-color: #6b7280; }
