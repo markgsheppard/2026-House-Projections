@@ -487,8 +487,54 @@
       renderAll();
       renderCurve(traces, `best ${v.toFixed(spec.objective === "winners" ? 4 : 3)} after ${restarts} restarts`);
       $("fit-summary").innerHTML = summary(BEST);
+      $("fit-story").innerHTML = story(BEST); $("fit-story-wrap").hidden = false;
     };
     setTimeout(step, 10);
+  }
+  // the fit in plain language: what the election looked like, dial by dial, and how close that gets
+  function story(b) {
+    const p = b.p, sc = b.sc, pts = v => `${Math.abs(v).toFixed(1)} point${Math.abs(v).toFixed(1) === "1.0" ? "" : "s"}`;
+    const frozen = scoreOf(predictAll(FROZEN, Object.assign({}, spec, { fe: false })));
+    const seats = seatTotals(predictAll(p, spec));
+    const out = [];
+    // the national environment
+    const dPolls = p.S - GB, dModel = p.S - FROZEN.S;
+    if (Math.abs(dPolls) < 1 && Math.abs(dModel) < 1) out.push(`The results look like a <b>${fmtGB(p.S)}</b> year nationally, about what both the polls and the model expected.`);
+    else out.push(`The results look like a <b>${fmtGB(p.S)}</b> year nationally: ${Math.abs(dPolls) < 0.5 ? "about what the polls said" : `${pts(dPolls)} ${dPolls > 0 ? "more Democratic" : "more Republican"} than the polls' ${fmtGB(GB)}`} and ${Math.abs(dModel) < 0.5 ? "about what the model ran" : `${pts(dModel)} ${dModel > 0 ? "more Democratic" : "more Republican"} than the ${fmtGB(FROZEN.S)} the model ran`}${dModel > 2 && dPolls > 0 ? ", so the mean reversion the model applied to the polls pointed the wrong way" : ""}.`);
+    // elasticity
+    if (p.kel >= 0.9 && p.kel <= 1.1) out.push(`Swing seats moved relative to safe seats about as the model expected (elasticity ${p.kel.toFixed(2)}\u00d7), so the miss was in the size of the wave, not its shape.`);
+    else if (p.kel > 1.1) out.push(`The wave piled up where races were already competitive: swingy seats swung ${p.kel.toFixed(2)} times as hard as the model expected.`);
+    else out.push(`The swing landed more evenly than the model expected (elasticity ${p.kel.toFixed(2)}\u00d7): safe seats moved nearly as much as swing seats.`);
+    // mail
+    out.push(p.mail < 0.3 ? `The fit finds no sign that restricted mail voting cost Democrats anything.` : `Restricted mail voting cost Democrats about ${pts(p.mail)} nationally, concentrated in the heavy-mail states.`);
+    // the economy
+    const above = Object.keys(ECON).filter(st => ECON[st].m > p.thr).sort((a, c) => ECON[c].m - ECON[a].m);
+    const nD = above.filter(st => ECON[st].g === "D").length, nR = above.length - nD;
+    const names = above.slice(0, 6).map(st => STATE_NAMES[st] || st).join(", ") + (above.length > 6 ? ` and ${above.length - 6 === 1 ? "one" : above.length - 6} more` : "");
+    if (p.shock < 0.3 || !above.length) out.push(`The economy dial does little here: the best fit barely uses it${!above.length ? ", since no state clears the threshold" : ""}.`);
+    else {
+      const who = spec.target === "gov" ? "the party holding the governorship" : spec.target === "pres" ? "the president's party" : "Democrats";
+      const size = spec.form === "step" ? `about ${pts(p.shock)}` : `${pts(p.shock)} for every point of misery above the line`;
+      let eco = `The economy left a mark where it was worst: in the ${above.length} state${above.length === 1 ? "" : "s"} with a misery index above ${p.thr.toFixed(1)} (${names}), every race ran ${size} against ${who}`;
+      if (spec.target === "gov") {
+        if (nD && !nR) eco += `. ${above.length === 1 ? "That state has" : "All of them have"} Democratic governors, so in practice this is Democrats running ${pts(p.shock)} behind the national wave there`;
+        else if (nR && !nD) eco += `. ${above.length === 1 ? "That state has" : "All of them have"} Republican governors, so in practice this is Republicans running ${pts(p.shock)} behind there`;
+        else eco += `: toward Republicans in the ${nD} with Democratic governors, toward Democrats in the ${nR} with Republican governors`;
+      }
+      if (p.shock > ECON_MAX * 1.5) eco += `. That is ${(p.shock / ECON_MAX).toFixed(1)} times the most the forecast page allowed`;
+      out.push(eco + ".");
+      if (above.includes("MI") && spec.target !== "pres") out.push(`Michigan is in that group, which is where its underperformance comes from.`);
+    }
+    // fundraising
+    const fmax = ROWS.reduce((m, r) => Math.max(m, Math.abs(r.fund)), 0);
+    if (p.wf >= 0.8 && p.wf <= 1.2) out.push(`Money mattered about as much as the model assumed.`);
+    else if (p.wf > 1.2) out.push(`Money mattered far more than the model allowed: the fit weights the third-quarter fundraising edge ${p.wf.toFixed(1)} times, worth up to ${pts(p.wf * fmax)} in the most lopsided races, where the model gave at most ${pts(fmax)}.`);
+    else out.push(`Money mattered less than the model assumed: the fundraising edge is weighted at ${p.wf.toFixed(2)} times.`);
+    // how close it gets
+    const left = sc.n - sc.right;
+    out.push(`With these settings the model would have called <b>${sc.right} of ${sc.n}</b> races right against the frozen forecast's ${frozen.right}, with a typical miss of ${sc.rmse.toFixed(1)} points instead of ${frozen.rmse.toFixed(1)}, and put Democrats at <b>${seats.house.d}</b> House seats against the ${seats.house.ad} they won or lead and <b>${seats.senate.d}</b> Senate seats against ${seats.senate.ad}.${spec.fe ? ` Scored honestly, with each state's effect estimated without the race in hand, that is ${sc.cvRight} of ${sc.n}.` : ""} ${left ? `The ${left} races still wrong are out of reach ${spec.fe ? "even with a state-by-state offset" : "of any national dial"}: they are local stories, and what they share is what the model is missing.` : "Every scored race is called right."}`);
+    out.push(`These are the settings that best describe the election after the fact, not what the model could have known on November 2.`);
+    return out.join(" ");
   }
   function summary(b) {
     const d = k => DIALS.find(x => x.k === k).fmt(b.p[k]);
@@ -518,7 +564,7 @@
   /* ---- wiring ------------------------------------------------------------ */
   function wire() {
     $("fit-btn").addEventListener("click", runFit);
-    $("reset-btn").addEventListener("click", () => { P = Object.assign({}, FROZEN); BEST = null; $("fit-summary").textContent = ""; renderCurve(null); renderAll(); });
+    $("reset-btn").addEventListener("click", () => { P = Object.assign({}, FROZEN); BEST = null; $("fit-summary").textContent = ""; $("fit-story-wrap").hidden = true; renderCurve(null); renderAll(); });
     $("profile-btn").addEventListener("click", runProfile);
     $("obj-toggle").addEventListener("click", e => { const b = e.target.closest("button[data-obj]"); if (!b) return; spec.objective = b.dataset.obj; BEST = null; renderCurve(null); renderAll(); });
     $("fe-toggle").addEventListener("click", e => { const b = e.target.closest("button[data-fe]"); if (!b) return; spec.fe = b.dataset.fe === "on"; BEST = null; renderAll(); });

@@ -723,6 +723,11 @@ input[type="range"]#bias-slider, input[type="range"]#sim-bias {
 .calib-page .ctrl-note { max-width: 760px; }
 .calib-page .fit-summary { margin: 12px 0 0; font-size: 14px; line-height: 1.55; color: var(--ink-soft); max-width: 860px; }
 .calib-page .fit-summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.calib-page .fit-story { margin: 18px 0 4px; padding: 18px 22px; background: var(--paper, #f7f8fa); border: 1px solid var(--line); border-radius: 14px; max-width: 980px; }
+.calib-page .fit-story .table-head { margin: 0 0 8px; }
+.calib-page .fit-story p:last-child { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--ink); }
+.calib-page .fit-story b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.calib-page .fit-story[hidden] { display: none; }
 .calib-page .readouts-wrap { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
 .calib-page .readouts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 .calib-page .readouts output { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
