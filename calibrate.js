@@ -491,49 +491,63 @@
     };
     setTimeout(step, 10);
   }
-  // the fit in plain language: what the election looked like, dial by dial, and how close that gets
+  // the fit in plain language, written for a general reader: what the election looked like and how close that gets
   function story(b) {
-    const p = b.p, sc = b.sc, pts = v => `${Math.abs(v).toFixed(1)} point${Math.abs(v).toFixed(1) === "1.0" ? "" : "s"}`;
+    const p = b.p, sc = b.sc;
+    const pts = v => { const a = Math.abs(v).toFixed(1); return `${a} point${a === "1.0" ? "" : "s"}`; };
+    const lead = v => `${v >= 0 ? "Democratic" : "Republican"} advantage of about ${pts(v)}`;
+    const num = n => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"][n] || String(n);
+    const vs = (v, what) => Math.abs(v) < 0.5 ? `about what ${what}` : `${pts(v)} ${v > 0 ? "beyond" : "short of"} what ${what}`;
     const frozen = scoreOf(predictAll(FROZEN, Object.assign({}, spec, { fe: false })));
     const seats = seatTotals(predictAll(p, spec));
     const out = [];
-    // the national environment
+    // the national picture
     const dPolls = p.S - GB, dModel = p.S - FROZEN.S;
-    if (Math.abs(dPolls) < 1 && Math.abs(dModel) < 1) out.push(`The results look like a <b>${fmtGB(p.S)}</b> year nationally, about what both the polls and the model expected.`);
-    else out.push(`The results look like a <b>${fmtGB(p.S)}</b> year nationally: ${Math.abs(dPolls) < 0.5 ? "about what the polls said" : `${pts(dPolls)} ${dPolls > 0 ? "more Democratic" : "more Republican"} than the polls' ${fmtGB(GB)}`} and ${Math.abs(dModel) < 0.5 ? "about what the model ran" : `${pts(dModel)} ${dModel > 0 ? "more Democratic" : "more Republican"} than the ${fmtGB(FROZEN.S)} the model ran`}${dModel > 2 && dPolls > 0 ? ", so the mean reversion the model applied to the polls pointed the wrong way" : ""}.`);
-    // elasticity
-    if (p.kel >= 0.9 && p.kel <= 1.1) out.push(`Swing seats moved relative to safe seats about as the model expected (elasticity ${p.kel.toFixed(2)}\u00d7), so the miss was in the size of the wave, not its shape.`);
-    else if (p.kel > 1.1) out.push(`The wave piled up where races were already competitive: swingy seats swung ${p.kel.toFixed(2)} times as hard as the model expected.`);
-    else out.push(`The swing landed more evenly than the model expected (elasticity ${p.kel.toFixed(2)}\u00d7): safe seats moved nearly as much as swing seats.`);
-    // mail
-    out.push(p.mail < 0.3 ? `The fit finds no sign that restricted mail voting cost Democrats anything.` : `Restricted mail voting cost Democrats about ${pts(p.mail)} nationally, concentrated in the heavy-mail states.`);
+    if (dPolls > 1 && dModel > 1) out.push(`Democrats had a better night than the polls or the model expected.`);
+    else if (dPolls < -1 && dModel < -1) out.push(`Republicans had a better night than the polls or the model expected.`);
+    out.push(`The results are consistent with a national ${lead(p.S)}, ${vs(dPolls, "the polls showed")} and ${vs(dModel, "the model projected")}.`);
+    if (FROZEN.S < GB - 0.5 && dPolls > 1) out.push(`The model had assumed the polls were overstating Democratic strength, as polls often have before a midterm. This time they were understating it.`);
+    else if (FROZEN.S > GB + 0.5 && dPolls < -1) out.push(`The model had assumed the polls were understating Democratic strength. This time they were overstating it.`);
+    // where the swing landed
+    if (p.kel >= 0.9 && p.kel <= 1.1) out.push(`The wave was broad rather than lopsided: competitive districts swung about as much more than safe ones as the model expected, so the model misjudged how big the shift would be, not where it would land.`);
+    else if (p.kel > 1.1) out.push(`The shift piled up in the competitive districts, which swung roughly ${p.kel.toFixed(1)} times as hard as the model expected, while the safe seats barely moved.`);
+    else out.push(`The shift was unusually even: safe seats moved nearly as much as competitive ones, which swung only about ${(p.kel * 100).toFixed(0)} percent of what the model expected.`);
+    // mail voting
+    out.push(p.mail < 0.3 ? `New limits on voting by mail, which the model treated as a possible drag on Democrats, left no visible trace.` : `New limits on voting by mail cost Democrats about ${pts(p.mail)} nationally, most of it in states where many of their voters vote by mail.`);
     // the economy
     const above = Object.keys(ECON).filter(st => ECON[st].m > p.thr).sort((a, c) => ECON[c].m - ECON[a].m);
     const nD = above.filter(st => ECON[st].g === "D").length, nR = above.length - nD;
-    const names = above.slice(0, 6).map(st => STATE_NAMES[st] || st).join(", ") + (above.length > 6 ? ` and ${above.length - 6 === 1 ? "one" : above.length - 6} more` : "");
-    if (p.shock < 0.3 || !above.length) out.push(`The economy dial does little here: the best fit barely uses it${!above.length ? ", since no state clears the threshold" : ""}.`);
+    const names = above.slice(0, 6).map(st => STATE_NAMES[st] || st).join(", ") + (above.length > 6 ? ` and ${num(above.length - 6)} more` : "");
+    if (p.shock < 0.3 || !above.length) out.push(`The economy, as the model measured it, left little mark${!above.length ? ": no state crossed the line where the model expected it to matter" : ""}.`);
     else {
-      const who = spec.target === "gov" ? "the party holding the governorship" : spec.target === "pres" ? "the president's party" : "Democrats";
-      const size = spec.form === "step" ? `about ${pts(p.shock)}` : `${pts(p.shock)} for every point of misery above the line`;
-      let eco = `The economy left a mark where it was worst: in the ${above.length} state${above.length === 1 ? "" : "s"} with a misery index above ${p.thr.toFixed(1)} (${names}), every race ran ${size} against ${who}`;
+      const where = `In the ${num(above.length)} state${above.length === 1 ? "" : "s"} where unemployment and inflation together were highest (${names})`;
+      const size = spec.form === "step" ? `about ${pts(p.shock)} behind` : `about ${pts(p.shock)} behind for every point of economic stress above the line`;
+      let eco;
       if (spec.target === "gov") {
-        if (nD && !nR) eco += `. ${above.length === 1 ? "That state has" : "All of them have"} Democratic governors, so in practice this is Democrats running ${pts(p.shock)} behind the national wave there`;
-        else if (nR && !nD) eco += `. ${above.length === 1 ? "That state has" : "All of them have"} Republican governors, so in practice this is Republicans running ${pts(p.shock)} behind there`;
-        else eco += `: toward Republicans in the ${nD} with Democratic governors, toward Democrats in the ${nR} with Republican governors`;
+        eco = `Where the economy was worst, voters took it out on whoever held the governor's office. ${where}, candidates from the governor's party ran ${size}`;
+        if (nD && !nR) eco += `, a penalty that fell entirely on Democrats, who hold ${above.length === 1 ? "that governorship" : "every one of those governorships"}`;
+        else if (nR && !nD) eco += `, a penalty that fell entirely on Republicans, who hold ${above.length === 1 ? "that governorship" : "every one of those governorships"}`;
+        else eco += `, a penalty that fell on Democrats in ${num(nD)} state${nD === 1 ? "" : "s"} and on Republicans in ${num(nR)}`;
+      } else if (spec.target === "pres") {
+        eco = `Where the economy was worst, voters took it out on the party in the White House. ${where}, Republican candidates ran ${size}`;
+      } else {
+        eco = `Where the economy was worst, Democrats paid for it. ${where}, Democratic candidates ran ${size}`;
       }
-      if (p.shock > ECON_MAX * 1.5) eco += `. That is ${(p.shock / ECON_MAX).toFixed(1)} times the most the forecast page allowed`;
+      if (p.shock > ECON_MAX * 1.5) eco += `. That is ${(p.shock / ECON_MAX).toFixed(1)} times the penalty the forecast had allowed for`;
       out.push(eco + ".");
-      if (above.includes("MI") && spec.target !== "pres") out.push(`Michigan is in that group, which is where its underperformance comes from.`);
+      if (above.includes("MI") && spec.target !== "pres") out.push(`Michigan is one of those states, which helps explain why its Democrats fell short of the national surge.`);
     }
-    // fundraising
+    // money
     const fmax = ROWS.reduce((m, r) => Math.max(m, Math.abs(r.fund)), 0);
     if (p.wf >= 0.8 && p.wf <= 1.2) out.push(`Money mattered about as much as the model assumed.`);
-    else if (p.wf > 1.2) out.push(`Money mattered far more than the model allowed: the fit weights the third-quarter fundraising edge ${p.wf.toFixed(1)} times, worth up to ${pts(p.wf * fmax)} in the most lopsided races, where the model gave at most ${pts(fmax)}.`);
-    else out.push(`Money mattered less than the model assumed: the fundraising edge is weighted at ${p.wf.toFixed(2)} times.`);
-    // how close it gets
-    const left = sc.n - sc.right;
-    out.push(`With these settings the model would have called <b>${sc.right} of ${sc.n}</b> races right against the frozen forecast's ${frozen.right}, with a typical miss of ${sc.rmse.toFixed(1)} points instead of ${frozen.rmse.toFixed(1)}, and put Democrats at <b>${seats.house.d}</b> House seats against the ${seats.house.ad} they won or lead and <b>${seats.senate.d}</b> Senate seats against ${seats.senate.ad}.${spec.fe ? ` Scored honestly, with each state's effect estimated without the race in hand, that is ${sc.cvRight} of ${sc.n}.` : ""} ${left ? `The ${left} races still wrong are out of reach ${spec.fe ? "even with a state-by-state offset" : "of any national dial"}: they are local stories, and what they share is what the model is missing.` : "Every scored race is called right."}`);
-    out.push(`These are the settings that best describe the election after the fact, not what the model could have known on November 2.`);
+    else if (p.wf > 1.2) out.push(`Money mattered far more than the model assumed: candidates who out-raised their opponents over the summer gained about ${Math.round(p.wf) <= 1 ? "twice" : num(Math.round(p.wf)) + " times"} the edge the model gave them, worth close to ${pts(p.wf * fmax)} in the most lopsided contests.`);
+    else out.push(`Money mattered less than the model assumed: the edge from out-raising an opponent was worth only about ${(p.wf * 100).toFixed(0)} percent of what the model gave it.`);
+    // how close it comes
+    const left = sc.n - sc.right, cmp = sc.right > frozen.right ? "up from" : sc.right < frozen.right ? "down from" : "the same as";
+    out.push(`Put together, these adjustments would have called ${sc.right} of ${sc.n} races correctly, ${cmp} ${frozen.right}, and cut the typical error in a race's margin from ${frozen.rmse.toFixed(1)} points to ${sc.rmse.toFixed(1)}. They would have given Democrats ${seats.house.d} House seats against the ${seats.house.ad} they won or lead, and ${seats.senate.d} Senate seats against ${seats.senate.ad}.`);
+    if (spec.fe) out.push(`Judged more strictly, with each state's correction estimated without the race it is being tested on, the count is ${sc.cvRight} of ${sc.n}.`);
+    out.push(left ? `The ${num(left)} race${left === 1 ? "" : "s"} that still come${left === 1 ? "s" : ""} out wrong ${left === 1 ? "is" : "are"} not the kind a national correction can fix. ${left === 1 ? "It" : "They"} turned on local candidates, local issues and local money, and what ${left === 1 ? "it shows" : "they have in common"} is what the model never saw.` : `Every race comes out right.`);
+    out.push(`None of this is prediction. It describes the election that happened, not the one anyone could have seen coming on November 2.`);
     return out.join(" ");
   }
   function summary(b) {
