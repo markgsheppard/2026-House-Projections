@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  END_UTC: "2026-11-21T05:00:00Z"   # midnight ET at the end of November 20
+  END_UTC: "2026-12-20T05:00:00Z"   # midnight ET at the end of December 19, past the Louisiana runoffs and late calls
   SLOW_FROM_UTC: "2026-11-08T05:00:00Z"   # from November 8 (midnight ET) the loop sleeps ten minutes instead of two
 
 jobs:
